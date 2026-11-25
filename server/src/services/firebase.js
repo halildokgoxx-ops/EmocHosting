@@ -21,6 +21,8 @@ function resolveServiceAccount() {
       projectId: ENV.FIREBASE_PROJECT_ID,
       clientEmail: ENV.FIREBASE_CLIENT_EMAIL,
       privateKey: ENV.FIREBASE_PRIVATE_KEY
+        .trim()
+        .replace(/^["']|["']$/g, '')
         .replace(/\\n/g, '\n')
         .replace(/\\r/g, '')
         .trim(),
