@@ -126,13 +126,19 @@ export async function collectTelemetrySnapshot(activeProcessesMap, io = null) {
       procByPid.set(p.pid, p);
     }
 
+    // Skip Firestore reads if no credentials available
     const emulatorUp = await isEmulatorReachable();
-    if (!emulatorUp) {
+    if (!emulatorUp && !firebaseStatus.hasAdminCredentials) {
       lastTelemetry = {
         ...lastTelemetry,
         host,
         updatedAt: Date.now(),
       };
+      return lastTelemetry;
+    }
+
+    if (!emulatorUp && firebaseStatus.mode === 'emulator') {
+      lastTelemetry = { ...lastTelemetry, host, updatedAt: Date.now() };
       return lastTelemetry;
     }
 

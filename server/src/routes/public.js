@@ -98,13 +98,29 @@ router.get('/bootstrap', async (req, res) => {
     let staticData = bootstrapCache.payload;
 
     if (!staticData || now >= bootstrapCache.expiresAt) {
-      staticData = await loadBootstrapFromDb();
-      if (staticData.packages.length === 0 || !staticData.config?.tosText) {
-        await seedInitialDataIfNeeded();
+      try {
         staticData = await loadBootstrapFromDb();
-      }
-      if (staticData.packages.length > 0 && staticData.config?.tosText) {
-        bootstrapCache = { payload: staticData, expiresAt: now + BOOTSTRAP_TTL_MS };
+        if (staticData.packages.length === 0 || !staticData.config?.tosText) {
+          await seedInitialDataIfNeeded();
+          staticData = await loadBootstrapFromDb();
+        }
+        if (staticData.packages.length > 0 && staticData.config?.tosText) {
+          bootstrapCache = { payload: staticData, expiresAt: now + BOOTSTRAP_TTL_MS };
+        }
+      } catch (dbErr) {
+        // Firestore unavailable — return minimal default so frontend can load
+        console.warn('[Bootstrap] Firestore erişilemedi, varsayılan veri dönülüyor:', dbErr.message?.slice(0, 80));
+        staticData = {
+          config: { registrationOpen: true, maintenanceMode: false },
+          packages: [],
+          incidents: [],
+          announcements: [],
+          templates: [],
+          changelogs: [],
+          latestChangelog: null,
+          leaderboard: { byInvites: [], byXp: [] },
+          totalUsers: 0,
+        };
       }
     }
 
