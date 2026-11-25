@@ -43,6 +43,13 @@ export async function requireAuth(req, res, next) {
       decoded = await verifyFirebaseToken(token);
     }
 
+    if (firebaseStatus.mode !== 'emulator' && !firebaseStatus.hasAdminCredentials) {
+      return res.status(503).json({
+        error: firebaseStatus.error || 'Veritabanı bağlantısı kurulamadı: Firebase Service Account anahtarı eksik veya iptal edilmiş.',
+        code: 'DB_UNAVAILABLE',
+      });
+    }
+
     const email = (decoded.email || '').toLowerCase().trim();
     const uid = decoded.uid;
     const isVerifiedForCloud = firebaseStatus.mode === 'emulator' || decoded.email_verified === true;
@@ -157,15 +164,26 @@ export async function requireAuth(req, res, next) {
 
     next();
   } catch (err) {
-    const msg = err?.message || '';
-    // Firebase token errors — log for debugging but return user-friendly message
-    if (msg.includes('invalid signature') || msg.includes('id-token')) {
+    const msg = String(err?.message || '');
+    const code = String(err?.code || '');
+    // Admin credential / Firestore connection errors MUST NOT masquerade as expired user sessions
+    if (
+      /UNAUTHENTICATED|invalid_grant|invalid-credential|Credential implementation|Could not load|FIRESTORE|UNAVAILABLE|PERMISSION_DENIED|DECODER|FAILED_PRECONDITION/i.test(
+        `${code} ${msg}`
+      )
+    ) {
+      console.error('[Auth] Veritabanı / Service Account hatası:', msg.slice(0, 160));
+      return res.status(503).json({
+        error: 'Veritabanı bağlantısı kurulamadı (Service Account anahtarı eksik veya iptal edilmiş).',
+        code: 'DB_UNAVAILABLE',
+      });
+    }
+    if (
+      code.startsWith('auth/') ||
+      /id-token|Firebase ID token|Decoding Firebase/i.test(msg)
+    ) {
       console.warn('[Auth] Firebase token doğrulama hatası:', msg.slice(0, 120));
       return res.status(401).json({ error: 'Oturum süresi doldu. Lütfen yeniden giriş yapın.', code: 'TOKEN_INVALID' });
-    }
-    if (msg.includes('FIRESTORE') || msg.includes('Could not load') || msg.includes('UNAVAILABLE')) {
-      console.error('[Auth] Firestore bağlantı hatası:', msg.slice(0, 120));
-      return res.status(503).json({ error: 'Veritabanı bağlantısı kurulamadı. Lütfen kısa süre sonra tekrar deneyin.', code: 'DB_UNAVAILABLE' });
     }
     console.error('[Auth] Beklenmeyen hata:', msg.slice(0, 200));
     return res.status(401).json({ error: 'Geçersiz veya süresi dolmuş oturum.', code: 'AUTH_ERROR' });

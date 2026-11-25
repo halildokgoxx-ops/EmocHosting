@@ -6,7 +6,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { Server as SocketIOServer } from 'socket.io';
 import { ENV } from './config/env.js';
-import { auth, db, seedInitialDataIfNeeded, firebaseStatus, verifyFirebaseToken } from './services/firebase.js';
+import {
+  auth,
+  db,
+  seedInitialDataIfNeeded,
+  validateServiceAccountHealth,
+  firebaseStatus,
+  verifyFirebaseToken,
+} from './services/firebase.js';
 import { isOwnerEmail, getSystemConfig } from './middleware/auth.js';
 import { createRateLimiter } from './middleware/rateLimit.js';
 import { compressionMiddleware } from './middleware/compress.js';
@@ -365,6 +372,8 @@ app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
     service: 'EmoçHosting',
+    dbReady: firebaseStatus.mode === 'emulator' || firebaseStatus.hasAdminCredentials === true,
+    firebaseMode: firebaseStatus.mode,
   });
 });
 
@@ -485,11 +494,14 @@ io.on('connection', (socket) => {
 });
 
 server.listen(ENV.PORT, ENV.HOST, async () => {
+  await validateServiceAccountHealth();
   await seedInitialDataIfNeeded();
   console.log(`\n🦁 EmoçHosting Backend çalışıyor -> http://localhost:${ENV.PORT}`);
   console.log(`🔥 Firebase Modu: ${firebaseStatus.mode} (Proje: ${firebaseStatus.projectId})`);
   startSchedulers(io);
   startSftpServer();
   startMcProxyServer();
-  restoreRunningServersOnBoot();
+  if (firebaseStatus.mode === 'emulator' || firebaseStatus.hasAdminCredentials) {
+    restoreRunningServersOnBoot();
+  }
 });

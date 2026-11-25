@@ -223,6 +223,15 @@ export function PackagesPage() {
         </div>
       </div>
 
+      {/* Database Connection Preview Notice */}
+      {cfg._dbUnavailable && (
+        <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs text-amber-200 flex items-center justify-between gap-3">
+          <span>
+            Mağaza kataloğu şu anda önizleme modunda gösteriliyor. Sipariş ve hesap işlemleri için sunucu veritabanı anahtarı güncellenmelidir.
+          </span>
+        </div>
+      )}
+
       {/* Interactive Capacity & Slot Calculator */}
       <div className="glass-panel rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-5 border-amber-500/20">
         <div className="space-y-1">

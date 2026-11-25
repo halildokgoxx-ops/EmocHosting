@@ -8,12 +8,215 @@ import { DEFAULT_TOS_TEXT, DEFAULT_KVKK_TEXT, DEFAULT_SEO_CONFIG, LEGAL_VERSION 
 let app;
 let auth;
 let db;
+let activeCredential = null;
+let candidateEntries = [];
 let firebaseStatus = {
   initialized: false,
   mode: ENV.FIREBASE_MODE,
   projectId: ENV.FIREBASE_PROJECT_ID,
   error: null,
 };
+
+export const DEFAULT_PACKAGES = [
+  {
+    id: 'mc-starter',
+    category: 'minecraft',
+    name: 'MC Demir Çekirdek',
+    description: 'Arkadaş grubu ve vanilla/PaperMC SMP sunucuları için ultra düşük gecikmeli başlangıç paketi.',
+    priceDaily: 8,
+    priceWeekly: 45,
+    priceMonthly: 149,
+    ramMb: 2048,
+    cpuCores: 2,
+    cpuLimitPct: 200,
+    diskMb: 10240,
+    slotsOrPorts: 20,
+    bandwidthGb: 1000,
+    backupsLimit: 3,
+    badge: 'Başlangıç',
+    featured: false,
+    active: true,
+    paused: false,
+    sortOrder: 1,
+    salesCount: 0,
+  },
+  {
+    id: 'mc-pro',
+    category: 'minecraft',
+    name: 'MC Elmas Ultra',
+    description: 'Yüksek eklentili Towny, Skyblock veya Modlu sunucular için Ryzen 9 sınıfı tam güç.',
+    priceDaily: 16,
+    priceWeekly: 89,
+    priceMonthly: 299,
+    ramMb: 6144,
+    cpuCores: 4,
+    cpuLimitPct: 400,
+    diskMb: 30720,
+    slotsOrPorts: 100,
+    bandwidthGb: 5000,
+    backupsLimit: 8,
+    badge: 'En Popüler',
+    featured: true,
+    active: true,
+    paused: false,
+    sortOrder: 2,
+    salesCount: 0,
+  },
+  {
+    id: 'mc-titan',
+    category: 'minecraft',
+    name: 'MC Netherite Network',
+    description: 'Büyük topluluk ağları ve Velocity/BungeeCord hub altyapıları için devasa RAM ve NVMe.',
+    priceDaily: 29,
+    priceWeekly: 165,
+    priceMonthly: 549,
+    ramMb: 12288,
+    cpuCores: 6,
+    cpuLimitPct: 600,
+    diskMb: 61440,
+    slotsOrPorts: 500,
+    bandwidthGb: 10000,
+    backupsLimit: 15,
+    badge: 'Pro Ağ',
+    featured: false,
+    active: true,
+    paused: false,
+    sortOrder: 3,
+    salesCount: 0,
+  },
+  {
+    id: 'web-flash',
+    category: 'web',
+    name: 'Web NVMe Başlangıç',
+    description: 'Kişisel portföy, landing page ve statik/SPA web projeleri için anında yayın.',
+    priceDaily: 4,
+    priceWeekly: 22,
+    priceMonthly: 69,
+    ramMb: 512,
+    cpuCores: 1,
+    cpuLimitPct: 100,
+    diskMb: 5120,
+    slotsOrPorts: 1,
+    bandwidthGb: 500,
+    backupsLimit: 3,
+    badge: 'Ekonomik',
+    featured: false,
+    active: true,
+    paused: false,
+    sortOrder: 4,
+    salesCount: 0,
+  },
+  {
+    id: 'web-cloud',
+    category: 'web',
+    name: 'Web Cloud Turbo',
+    description: 'Yüksek trafikli kurumsal siteler, Node.js web uygulamaları ve özel SSL/CORS yönetimi.',
+    priceDaily: 9,
+    priceWeekly: 49,
+    priceMonthly: 159,
+    ramMb: 2048,
+    cpuCores: 2,
+    cpuLimitPct: 200,
+    diskMb: 20480,
+    slotsOrPorts: 5,
+    bandwidthGb: 3000,
+    backupsLimit: 10,
+    badge: 'Hızlı Yayın',
+    featured: true,
+    active: true,
+    paused: false,
+    sortOrder: 5,
+    salesCount: 0,
+  },
+  {
+    id: 'bot-spark',
+    category: 'discord',
+    name: 'Discord Bot Spark',
+    description: 'Discord.js v14 ve discord.py botlarınız için 7/24 kesintisiz canlı konsol ve .env kasa.',
+    priceDaily: 3,
+    priceWeekly: 18,
+    priceMonthly: 49,
+    ramMb: 512,
+    cpuCores: 1,
+    cpuLimitPct: 100,
+    diskMb: 2048,
+    slotsOrPorts: 1,
+    bandwidthGb: 500,
+    backupsLimit: 3,
+    badge: '7/24 Aktif',
+    featured: false,
+    active: true,
+    paused: false,
+    sortOrder: 6,
+    salesCount: 0,
+  },
+  {
+    id: 'bot-hyper',
+    category: 'discord',
+    name: 'Discord Bot Hyper Sharding',
+    description: 'Müzik, AI ses, moderasyon ve çoklu sunucu botları için yüksek bellekli profesyonel motor.',
+    priceDaily: 7,
+    priceWeekly: 39,
+    priceMonthly: 119,
+    ramMb: 2048,
+    cpuCores: 2,
+    cpuLimitPct: 200,
+    diskMb: 8192,
+    slotsOrPorts: 3,
+    bandwidthGb: 2000,
+    backupsLimit: 7,
+    badge: 'En Çok Seçilen',
+    featured: true,
+    active: true,
+    paused: false,
+    sortOrder: 7,
+    salesCount: 0,
+  },
+  {
+    id: 'infra-core',
+    category: 'altyapi',
+    name: 'Altyapı Node/Python Core',
+    description: 'API servisleri, otomasyon işleri, cron motorları ve özel backend projeleri için tam kontrol.',
+    priceDaily: 12,
+    priceWeekly: 65,
+    priceMonthly: 219,
+    ramMb: 4096,
+    cpuCores: 3,
+    cpuLimitPct: 300,
+    diskMb: 25600,
+    slotsOrPorts: 3,
+    bandwidthGb: 5000,
+    backupsLimit: 10,
+    badge: 'Geliştirici',
+    featured: true,
+    active: true,
+    paused: false,
+    sortOrder: 8,
+    salesCount: 0,
+  },
+  {
+    id: 'infra-enterprise',
+    category: 'altyapi',
+    name: 'Altyapı Dedicated Cluster',
+    description: 'Yüksek eşzamanlı API, oyun backendi ve yoğun veri işleme servisleri için üst seviye node.',
+    priceDaily: 24,
+    priceWeekly: 135,
+    priceMonthly: 449,
+    ramMb: 8192,
+    cpuCores: 6,
+    cpuLimitPct: 600,
+    diskMb: 51200,
+    slotsOrPorts: 10,
+    bandwidthGb: 10000,
+    backupsLimit: 20,
+    badge: 'Kurumsal',
+    featured: false,
+    active: true,
+    paused: false,
+    sortOrder: 9,
+    salesCount: 0,
+  },
+];
 
 function normalizePrivateKeyPem(raw) {
   let val = String(raw || '').trim();
@@ -139,7 +342,9 @@ export function initFirebaseAdmin() {
     }
 
     const projectId = chosenData?.project_id || chosenData?.projectId || ENV.FIREBASE_PROJECT_ID;
+    candidateEntries = candidates;
     if (certCredential) {
+      activeCredential = certCredential;
       app = admin.initializeApp({ credential: certCredential, projectId });
       firebaseStatus = { initialized: true, mode: 'cloud', hasAdminCredentials: true, projectId, error: null };
     } else {
@@ -203,10 +408,46 @@ export function initFirebaseAdmin() {
 
 initFirebaseAdmin();
 
+export async function validateServiceAccountHealth() {
+  if (firebaseStatus.mode === 'emulator') return true;
+  if (!activeCredential) return false;
+  try {
+    await activeCredential.getAccessToken();
+    firebaseStatus.hasAdminCredentials = true;
+    firebaseStatus.mode = 'cloud';
+    firebaseStatus.error = null;
+    return true;
+  } catch (err) {
+    const msg = String(err?.message || '');
+    console.error('[Firebase] Service account doğrulama hatası (anahtar iptal edilmiş olabilir):', msg.slice(0, 180));
+    firebaseStatus.hasAdminCredentials = false;
+    firebaseStatus.mode = 'cloud-invalid-sa';
+    firebaseStatus.error = 'Service account key iptal edilmiş (revoked) veya geçersiz. Firebase Console üzerinden yeni anahtar oluşturun.';
+    return false;
+  }
+}
+
 export async function verifyFirebaseToken(token) {
   const canCheckRevoked =
     firebaseStatus.mode === 'emulator' || firebaseStatus.hasAdminCredentials === true;
-  return auth.verifyIdToken(token, canCheckRevoked);
+  try {
+    return await auth.verifyIdToken(token, canCheckRevoked);
+  } catch (err) {
+    const msg = String(err?.message || '');
+    const code = String(err?.code || '');
+    // If checkRevoked failed because Service Account key is revoked/invalid, fall back to Google public cert verification
+    if (
+      canCheckRevoked &&
+      firebaseStatus.mode !== 'emulator' &&
+      (code === 'app/invalid-credential' || /invalid_grant|Credential implementation|Invalid JWT Signature/i.test(msg))
+    ) {
+      firebaseStatus.hasAdminCredentials = false;
+      firebaseStatus.mode = 'cloud-invalid-sa';
+      firebaseStatus.error = 'Service account key geçersiz/iptal edilmiş; token doğrulama public certs moduna düşürüldü.';
+      return auth.verifyIdToken(token, false);
+    }
+    throw err;
+  }
 }
 
 export { admin, app, auth, db, firebaseStatus };
@@ -248,6 +489,9 @@ export async function logServerActivity(serverId, { actorEmail = 'system', actio
 
 export async function seedInitialDataIfNeeded() {
   try {
+    if (firebaseStatus.mode !== 'emulator' && !firebaseStatus.hasAdminCredentials) {
+      return;
+    }
     if (firebaseStatus.mode === 'emulator' || firebaseStatus.firestoreEmulatorHost) {
       const [h, p] = String(ENV.FIRESTORE_EMULATOR_HOST || 'localhost:8080').split(':');
       const ok = await new Promise((resolve) => {
@@ -340,224 +584,11 @@ export async function seedInitialDataIfNeeded() {
 
     const pkgSnap = await db.collection('packages').limit(1).get();
     if (pkgSnap.empty) {
-      const defaultPackages = [
-        // Minecraft Host
-        {
-          id: 'mc-starter',
-          category: 'minecraft',
-          name: 'MC Demir Çekirdek',
-          description: 'Arkadaş grubu ve vanilla/PaperMC SMP sunucuları için ultra düşük gecikmeli başlangıç paketi.',
-          priceDaily: 8,
-          priceWeekly: 45,
-          priceMonthly: 149,
-          ramMb: 2048,
-          cpuCores: 2,
-          cpuLimitPct: 200,
-          diskMb: 10240,
-          slotsOrPorts: 20,
-          bandwidthGb: 1000,
-          backupsLimit: 3,
-          badge: 'Başlangıç',
-          featured: false,
-          active: true,
-          paused: false,
-          sortOrder: 1,
-          salesCount: 0,
-          createdAt: Date.now(),
-        },
-        {
-          id: 'mc-pro',
-          category: 'minecraft',
-          name: 'MC Elmas Ultra',
-          description: 'Yüksek eklentili Towny, Skyblock veya Modlu sunucular için Ryzen 9 sınıfı tam güç.',
-          priceDaily: 16,
-          priceWeekly: 89,
-          priceMonthly: 299,
-          ramMb: 6144,
-          cpuCores: 4,
-          cpuLimitPct: 400,
-          diskMb: 30720,
-          slotsOrPorts: 100,
-          bandwidthGb: 5000,
-          backupsLimit: 8,
-          badge: 'En Popüler',
-          featured: true,
-          active: true,
-          paused: false,
-          sortOrder: 2,
-          salesCount: 0,
-          createdAt: Date.now(),
-        },
-        {
-          id: 'mc-titan',
-          category: 'minecraft',
-          name: 'MC Netherite Network',
-          description: 'Büyük topluluk ağları ve Velocity/BungeeCord hub altyapıları için devasa RAM ve NVMe.',
-          priceDaily: 29,
-          priceWeekly: 165,
-          priceMonthly: 549,
-          ramMb: 12288,
-          cpuCores: 6,
-          cpuLimitPct: 600,
-          diskMb: 61440,
-          slotsOrPorts: 500,
-          bandwidthGb: 10000,
-          backupsLimit: 15,
-          badge: 'Pro Ağ',
-          featured: false,
-          active: true,
-          paused: false,
-          sortOrder: 3,
-          salesCount: 0,
-          createdAt: Date.now(),
-        },
-        // Website Host
-        {
-          id: 'web-flash',
-          category: 'web',
-          name: 'Web NVMe Başlangıç',
-          description: 'Kişisel portföy, landing page ve statik/SPA web projeleri için anında yayın.',
-          priceDaily: 4,
-          priceWeekly: 22,
-          priceMonthly: 69,
-          ramMb: 512,
-          cpuCores: 1,
-          cpuLimitPct: 100,
-          diskMb: 5120,
-          slotsOrPorts: 1,
-          bandwidthGb: 500,
-          backupsLimit: 3,
-          badge: 'Ekonomik',
-          featured: false,
-          active: true,
-          paused: false,
-          sortOrder: 4,
-          salesCount: 0,
-          createdAt: Date.now(),
-        },
-        {
-          id: 'web-cloud',
-          category: 'web',
-          name: 'Web Cloud Turbo',
-          description: 'Yüksek trafikli kurumsal siteler, Node.js web uygulamaları ve özel SSL/CORS yönetimi.',
-          priceDaily: 9,
-          priceWeekly: 49,
-          priceMonthly: 159,
-          ramMb: 2048,
-          cpuCores: 2,
-          cpuLimitPct: 200,
-          diskMb: 20480,
-          slotsOrPorts: 5,
-          bandwidthGb: 3000,
-          backupsLimit: 10,
-          badge: 'Hızlı Yayın',
-          featured: true,
-          active: true,
-          paused: false,
-          sortOrder: 5,
-          salesCount: 0,
-          createdAt: Date.now(),
-        },
-        // Discord Bot Host
-        {
-          id: 'bot-spark',
-          category: 'discord',
-          name: 'Discord Bot Spark',
-          description: 'Discord.js v14 ve discord.py botlarınız için 7/24 kesintisiz canlı konsol ve .env kasa.',
-          priceDaily: 3,
-          priceWeekly: 18,
-          priceMonthly: 49,
-          ramMb: 512,
-          cpuCores: 1,
-          cpuLimitPct: 100,
-          diskMb: 2048,
-          slotsOrPorts: 1,
-          bandwidthGb: 500,
-          backupsLimit: 3,
-          badge: '7/24 Aktif',
-          featured: false,
-          active: true,
-          paused: false,
-          sortOrder: 6,
-          salesCount: 0,
-          createdAt: Date.now(),
-        },
-        {
-          id: 'bot-hyper',
-          category: 'discord',
-          name: 'Discord Bot Hyper Sharding',
-          description: 'Müzik, AI ses, moderasyon ve çoklu sunucu botları için yüksek bellekli profesyonel motor.',
-          priceDaily: 7,
-          priceWeekly: 39,
-          priceMonthly: 119,
-          ramMb: 2048,
-          cpuCores: 2,
-          cpuLimitPct: 200,
-          diskMb: 8192,
-          slotsOrPorts: 3,
-          bandwidthGb: 2000,
-          backupsLimit: 7,
-          badge: 'En Çok Seçilen',
-          featured: true,
-          active: true,
-          paused: false,
-          sortOrder: 7,
-          salesCount: 0,
-          createdAt: Date.now(),
-        },
-        // Altyapı Host
-        {
-          id: 'infra-core',
-          category: 'altyapi',
-          name: 'Altyapı Node/Python Core',
-          description: 'API servisleri, otomasyon işleri, cron motorları ve özel backend projeleri için tam kontrol.',
-          priceDaily: 12,
-          priceWeekly: 65,
-          priceMonthly: 219,
-          ramMb: 4096,
-          cpuCores: 3,
-          cpuLimitPct: 300,
-          diskMb: 25600,
-          slotsOrPorts: 3,
-          bandwidthGb: 5000,
-          backupsLimit: 10,
-          badge: 'Geliştirici',
-          featured: true,
-          active: true,
-          paused: false,
-          sortOrder: 8,
-          salesCount: 0,
-          createdAt: Date.now(),
-        },
-        {
-          id: 'infra-enterprise',
-          category: 'altyapi',
-          name: 'Altyapı Dedicated Cluster',
-          description: 'Yüksek eşzamanlı API, oyun backendi ve yoğun veri işleme servisleri için üst seviye node.',
-          priceDaily: 24,
-          priceWeekly: 135,
-          priceMonthly: 449,
-          ramMb: 8192,
-          cpuCores: 6,
-          cpuLimitPct: 600,
-          diskMb: 51200,
-          slotsOrPorts: 10,
-          bandwidthGb: 10000,
-          backupsLimit: 20,
-          badge: 'Kurumsal',
-          featured: false,
-          active: true,
-          paused: false,
-          sortOrder: 9,
-          salesCount: 0,
-          createdAt: Date.now(),
-        },
-      ];
-
       const batch = db.batch();
-      for (const pkg of defaultPackages) {
+      const nowTs = Date.now();
+      for (const pkg of DEFAULT_PACKAGES) {
         const { id, ...data } = pkg;
-        batch.set(db.collection('packages').doc(id), data);
+        batch.set(db.collection('packages').doc(id), { ...data, createdAt: nowTs });
       }
       await batch.commit();
     }

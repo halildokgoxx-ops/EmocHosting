@@ -1,9 +1,35 @@
 import express from 'express';
-import { db, seedInitialDataIfNeeded } from '../services/firebase.js';
+import { db, seedInitialDataIfNeeded, firebaseStatus, DEFAULT_PACKAGES } from '../services/firebase.js';
+import { DEFAULT_TOS_TEXT, DEFAULT_KVKK_TEXT, DEFAULT_SEO_CONFIG } from '../services/legalSeed.js';
 import { getLatestTelemetry } from '../services/telemetry.js';
 import { createRateLimiter } from '../middleware/rateLimit.js';
 import { sanitizeString } from '../utils/security.js';
 import { recordAnalyticsEvent, recordConsentChoice } from '../services/analyticsStore.js';
+
+function getPreviewFallbackPayload() {
+  return {
+    config: {
+      siteName: 'EmoçHosting',
+      registrationOpen: true,
+      maintenanceMode: false,
+      nightMarketEnabled: true,
+      inviteRewardInviter: 25,
+      inviteRewardInvited: 15,
+      tosText: DEFAULT_TOS_TEXT,
+      privacyText: DEFAULT_KVKK_TEXT,
+      ...DEFAULT_SEO_CONFIG,
+      _dbUnavailable: true,
+    },
+    packages: DEFAULT_PACKAGES,
+    incidents: [],
+    announcements: [],
+    templates: [],
+    changelogs: [],
+    latestChangelog: null,
+    leaderboard: { byInvites: [], byXp: [] },
+    totalUsers: 0,
+  };
+}
 
 const router = express.Router();
 
@@ -98,29 +124,22 @@ router.get('/bootstrap', async (req, res) => {
     let staticData = bootstrapCache.payload;
 
     if (!staticData || now >= bootstrapCache.expiresAt) {
-      try {
-        staticData = await loadBootstrapFromDb();
-        if (staticData.packages.length === 0 || !staticData.config?.tosText) {
-          await seedInitialDataIfNeeded();
+      if (firebaseStatus.mode !== 'emulator' && !firebaseStatus.hasAdminCredentials) {
+        staticData = getPreviewFallbackPayload();
+      } else {
+        try {
           staticData = await loadBootstrapFromDb();
+          if (staticData.packages.length === 0 || !staticData.config?.tosText) {
+            await seedInitialDataIfNeeded();
+            staticData = await loadBootstrapFromDb();
+          }
+          if (staticData.packages.length > 0 && staticData.config?.tosText) {
+            bootstrapCache = { payload: staticData, expiresAt: now + BOOTSTRAP_TTL_MS };
+          }
+        } catch (dbErr) {
+          console.warn('[Bootstrap] Firestore erişilemedi, önizleme kataloğu dönülüyor:', dbErr.message?.slice(0, 80));
+          staticData = getPreviewFallbackPayload();
         }
-        if (staticData.packages.length > 0 && staticData.config?.tosText) {
-          bootstrapCache = { payload: staticData, expiresAt: now + BOOTSTRAP_TTL_MS };
-        }
-      } catch (dbErr) {
-        // Firestore unavailable — return minimal default so frontend can load
-        console.warn('[Bootstrap] Firestore erişilemedi, varsayılan veri dönülüyor:', dbErr.message?.slice(0, 80));
-        staticData = {
-          config: { registrationOpen: true, maintenanceMode: false },
-          packages: [],
-          incidents: [],
-          announcements: [],
-          templates: [],
-          changelogs: [],
-          latestChangelog: null,
-          leaderboard: { byInvites: [], byXp: [] },
-          totalUsers: 0,
-        };
       }
     }
 

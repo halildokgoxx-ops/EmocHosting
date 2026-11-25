@@ -259,6 +259,18 @@ export function Navbar({ onOpenCmd }) {
                   </AnimatePresence>
                 </div>
 
+                {/* Direct Admin Shortcut when authorized */}
+                {isAdmin && (
+                  <Link
+                    to={ADMIN_ROUTE_PATH}
+                    className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/35 text-xs font-bold text-rose-300 transition whitespace-nowrap"
+                    title="Yönetici Komuta Merkezi"
+                  >
+                    <ShieldAdminIcon className="w-3.5 h-3.5" />
+                    <span>Admin</span>
+                  </Link>
+                )}
+
                 {/* User Pill Dropdown */}
                 <div className="relative" ref={menuRef}>
                   <button
@@ -445,9 +457,20 @@ export function Navbar({ onOpenCmd }) {
                 </Link>
               ))}
             {firebaseUser ? (
-              <Link to="/account" onClick={() => setMobileOpen(false)} className="block px-3 py-2 rounded-xl text-sm text-zinc-300">
-                Hesap Ayarları
-              </Link>
+              <>
+                <Link to="/account" onClick={() => setMobileOpen(false)} className="block px-3 py-2 rounded-xl text-sm text-zinc-300">
+                  Hesap Ayarları
+                </Link>
+                {isAdmin && (
+                  <Link
+                    to={ADMIN_ROUTE_PATH}
+                    onClick={() => setMobileOpen(false)}
+                    className="block px-3 py-2 rounded-xl text-sm font-bold text-rose-300 bg-rose-500/10"
+                  >
+                    Admin Paneli
+                  </Link>
+                )}
+              </>
             ) : (
               <Link to="/auth" onClick={() => setMobileOpen(false)} className="block px-3 py-2 rounded-xl text-sm text-amber-300 font-semibold">
                 Giriş Yap / Kayıt Ol
