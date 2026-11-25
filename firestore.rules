@@ -1,0 +1,301 @@
+rules_version = '2';
+
+// ===============================================================
+// EmoçHosting — Zero-Trust Cloud Firestore Security Rules
+// ===============================================================
+//
+// SECURITY ARCHITECTURE NOTES:
+// - The frontend web client (`client/src/`) uses Firebase Authentication
+//   (`firebase/auth`) solely to obtain Firebase ID tokens and communicates
+//   exclusively with the Express REST API + Socket.IO backend.
+// - All Firestore reads, queries, transactions, and writes happen exclusively
+//   server-side through `firebase-admin` (Admin SDK), which safely bypasses
+//   client security rules after enforcing token/API-key verification, IP bans,
+//   RBAC, billing invariants, resource quotas, `jvmFlags`/`entryFile`/
+//   `scheduledTasks` sanitization, rate limits, and field-level redaction.
+// - Because `VITE_FIREBASE_API_KEY` is public in the browser bundle, anyone can
+//   sign up or obtain a Firebase ID token and invoke the Firestore Client SDK
+//   directly. Therefore, ALL Client SDK reads and writes are explicitly denied
+//   across every collection, subcollection, and the root catch-all fallback.
+// - No PII or hardcoded admin emails are stored in these rules.
+//
+// ===============================================================
+// Assumed Data Model (Managed Exclusively via Backend Admin SDK)
+// ===============================================================
+//
+// Collection: users
+// Document ID: {uid} (Firebase Auth UID)
+// Fields: uid, email, displayName, photoURL, role, isAdmin, balance, totalSpent,
+//         banned, banReason, bannedUntil, referralCode, referredBy, referredCode,
+//         referralCount, referralEarnings, xp, badges, notes (staff-only), lastIp,
+//         preferences, acceptedTermsAt, acceptedKvkkAt, nightMarket, createdAt, lastLoginAt
+//
+// Collection: packages
+// Document ID: {packageId}
+// Fields: category, name, description, priceDaily, priceWeekly, priceMonthly,
+//         ramMb, cpuCores, cpuLimitPct, diskMb, slotsOrPorts, bandwidthGb,
+//         backupsLimit, badge, featured, active, paused, sortOrder, salesCount,
+//         createdAt, updatedAt
+//
+// Collection: servers
+// Document ID: {serverId}
+// Fields: slug, subdomain, domainAddress, name, ownerUid, ownerEmail, category,
+//         packageId, packageName, billingCycle, pricePaid, couponUsed, status,
+//         port, allocatedRamMb, allocatedCpuPct, allocatedDiskMb, slotsOrPorts,
+//         backupsLimit, config (autoRestart, runtime, entryFile, jvmFlags, mcEngine, mcVersion),
+//         scheduledTasks, collaborators, collaboratorUids, sftp (contains sftp.password secret),
+//         suspendedReason, lastStartedBy, expiresAt, createdAt, updatedAt
+//
+// Subcollection: servers/{serverId}/backups
+// Document ID: {backupId}
+// Fields: filename, sizeMb, note, createdAt
+//
+// Subcollection: servers/{serverId}/activity_logs
+// Document ID: {logId}
+// Fields: actorEmail, action, category, details, createdAt
+//
+// Collection: tickets
+// Document ID: {ticketId}
+// Fields: uid, email, displayName, subject, category, priority, serverId,
+//         status, assignedTo, internalNote, createdAt, updatedAt
+//
+// Subcollection: tickets/{ticketId}/messages
+// Document ID: {msgId}
+// Fields: senderUid, senderEmail, senderName, isStaff, text, createdAt
+//
+// Subcollection: tickets/{ticketId}/internal_notes
+// Document ID: {noteId}
+// Fields: text, updatedAt, updatedBy, createdAt
+//
+// Collection: coupons
+// Document ID: {code}
+// Fields: code, discountType, value, minAmount, maxUses, usedCount,
+//         categoryFilter, active, expiresAt, ownerUid, source, createdBy, createdAt
+//
+// Collection: invites
+// Document ID: {inviteId}
+// Fields: inviterUid, inviterEmail, invitedUid, invitedEmail, code,
+//         rewardInviter, rewardInvited, createdAt
+//
+// Collection: wallet_transactions
+// Document ID: {txId}
+// Fields: uid, email, type, amount, note, serverId, adminEmail, createdAt
+//
+// Collection: user_notifications
+// Document ID: {notifId}
+// Fields: uid, title, message, type, createdBy, read, meta, createdAt
+//
+// Collection: api_keys
+// Document ID: {keyHash}
+// Fields: uid, email, label, prefix, revoked, createdAt, lastUsedAt
+//
+// Collection: system_config
+// Document ID: 'global' | 'secrets'
+// Fields (global): siteName, siteTagline, maintenanceMode, maintenanceMessage,
+//         discordInviteUrl, supportEmail, announcementBanner, announcementType,
+//         announcementActive, registrationOpen, onlyOwnerAdminMode,
+//         defaultStartingBalance, inviteRewardInviter, inviteRewardInvited,
+//         invitePromoActive, flashSalePercent, flashSaleTitle, flashSaleEndsAt,
+//         nightMarketEnabled, nightMarketCooldownDays, nightMarketBoxCount,
+//         maxServersPerUser, maxUploadMb, autoSuspendExpired, autoRestartCrashed,
+//         cpuAlertThresholdPct, ramAlertThresholdPct, globalMaxRamMb,
+//         tosText, privacyText, seoTitle, seoDescription, seoKeywords, ogImageUrl,
+//         socialLinks, updatedAt, updatedBy
+// Fields (secrets): discordWebhookUrl, curseforgeApiKey, updatedAt
+//
+// Collection: announcements
+// Document ID: {id}
+// Fields: title, message, type, active, createdBy, createdAt
+//
+// Collection: incidents
+// Document ID: {id}
+// Fields: title, message, severity, status, createdBy, createdAt, updatedAt
+//
+// Collection: starter_templates
+// Document ID: {id}
+// Fields: category, name, description, active
+//
+// Collection: changelogs
+// Document ID: {id}
+// Fields: version, title, summary, items, category, active, createdBy, createdAt, updatedAt
+//
+// Collection: canned_responses
+// Document ID: {id}
+// Fields: title, text, createdAt
+//
+// Collection: ip_bans
+// Document ID: {id}
+// Fields: ip, reason, createdBy, createdAt
+//
+// Collection: audit_logs
+// Document ID: {id}
+// Fields: actorEmail, actorUid, action, targetType, targetId, details, createdAt
+//
+// Collection: giveaways
+// Document ID: {giveawayId}
+// Fields: title, description, prizeType, prizeValue, prizeLabel, winnerCount,
+//         minXp, participantCount, status, winners, endsAt, drawnAt, drawnBy,
+//         createdBy, createdAt
+//
+// Subcollection: giveaways/{giveawayId}/entries
+// Document ID: {entryUid}
+// Fields: uid, email, displayName, joinedAt
+//
+// Collection: analytics_aggregates
+// Document ID: 'global'
+// Fields: startedAt, updatedAt, totalPageviews, totalCtaClicks, totalDwellMs,
+//         totalDwellSamples, consentStats (acceptedAll, essentialOnly),
+//         deviceStats (desktop, mobile), paths (map of normalized public paths ->
+//         { views, totalDwellMs, dwellCount, lastViewedAt }),
+//         interests (map of CTA label/type -> { clicks, lastPath, lastAt })
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. User Profiles (PII, balances, roles, admin notes — Admin SDK only)
+    match /users/{uid} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 2. Hosting Packages (Served via Express /api/public/bootstrap — Admin SDK only)
+    match /packages/{packageId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 3. Hosted Servers & Nested Subcollections (Contains sftp.password & quota fields — Admin SDK only)
+    match /servers/{serverId} {
+      allow read: if false;
+      allow write: if false;
+
+      match /backups/{backupId} {
+        allow read: if false;
+        allow write: if false;
+      }
+
+      match /activity_logs/{logId} {
+        allow read: if false;
+        allow write: if false;
+      }
+    }
+
+    // 4. Support Tickets & Nested Subcollections (Contains emails, messages & staff internal_notes — Admin SDK only)
+    match /tickets/{ticketId} {
+      allow read: if false;
+      allow write: if false;
+
+      match /messages/{msgId} {
+        allow read: if false;
+        allow write: if false;
+      }
+
+      match /internal_notes/{noteId} {
+        allow read: if false;
+        allow write: if false;
+      }
+    }
+
+    // 5. Coupons (Discount codes & owner-bound rewards — Admin SDK only)
+    match /coupons/{code} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 6. Referral Invites (PII & referral rewards — Admin SDK only)
+    match /invites/{inviteId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 7. Wallet Transactions (Financial ledger — Admin SDK only)
+    match /wallet_transactions/{txId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 8. User Notifications (Private user alerts — Admin SDK only)
+    match /user_notifications/{notifId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 9. API Keys (Hashed keys, prefixes & user emails — Admin SDK only)
+    match /api_keys/{keyId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 10. System Config (Covers 'global' and 'secrets' docs — Admin SDK only)
+    match /system_config/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 11. Announcements (Contains admin createdBy email & active flag; served via Express API — Admin SDK only)
+    match /announcements/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 12. Incidents / Status Updates (Contains admin createdBy email; served via Express API — Admin SDK only)
+    match /incidents/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 13. Starter Templates (Served via Express /api/public/bootstrap — Admin SDK only)
+    match /starter_templates/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 14. Changelogs (Contains admin createdBy email & active flag; served via Express API — Admin SDK only)
+    match /changelogs/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 15. Support Canned Responses (Staff-only templates — Admin SDK only)
+    match /canned_responses/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 16. IP Bans (Security enforcement records — Admin SDK only)
+    match /ip_bans/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 17. Audit Logs (Security & operational audit trail — Admin SDK only)
+    match /audit_logs/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // 18. Giveaways & Entries (Contains winner lists & entrant emails; served via Express API — Admin SDK only)
+    match /giveaways/{giveawayId} {
+      allow read: if false;
+      allow write: if false;
+
+      match /entries/{entryUid} {
+        allow read: if false;
+        allow write: if false;
+      }
+    }
+
+    // 19. Analytics Aggregates (Doc 'global': anonymous consent, dwell & CTA stats; served via Express Admin API — Admin SDK only)
+    match /analytics_aggregates/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // Default Deny Catch-All (Blocks any unlisted collection or subcollection)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

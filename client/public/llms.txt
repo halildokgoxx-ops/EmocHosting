@@ -1,0 +1,23 @@
+# EmoçHosting
+
+> EmoçHosting; Minecraft sunucuları (Modrinth ve CurseForge tek tık kurulum), Web Hosting, Discord Bot ve Altyapı Node barındırma hizmetlerini canlı konsol, SFTP ve otomatik `<isim>.emochost.com` adresleme ile sunan yüksek performanslı bulut platformudur.
+
+## Platform Özellikleri
+- **Minecraft Host**: Paper, Purpur, EmoçCore, Forge, NeoForge, Fabric, Spigot, Bukkit, Velocity, BungeeCord, Folia ve Leaf desteği; tek tıkla eklenti/mod kurulumu, MOTD tasarımcısı ve akıllı sunucu hata teşhisi.
+- **Website Host**: Statik siteler ve dinamik web uygulamaları, canlı erişim günlükleri, şifreli koruma, IP erişim denetimi ve anlık alt alan adı yayını.
+- **Discord Bot & Altyapı**: Node.js, Python ve Java çalışma ortamları, güvenli ortam değişkeni yönetimi, zamanlanmış görevler ve hızlı veri deposu.
+- **Topluluk & İnvite Ekonomisi**: Paketleri İnvite bakiyesi ile kirala; haftalık 3 gizemli kutudan oluşan Gece Pazarı kuponları (%10–%50 indirim), şeffaf çekiliş sistemi ve arkadaş davet ödülleri kazan.
+
+## Genel Sayfalar
+- [Ana Sayfa](/): Platform özeti, ürün kategorileri, öne çıkan paketler ve canlı altyapı istatistikleri.
+- [Mağaza & Paketler](/packages): Günlük, haftalık ve aylık faturalandırmalı tüm sunucu paketleri ve akıllı ölçek önerisi.
+- [Gece Pazarı Fırsatları](/deals): Haftalık kişiye özel indirim kutuları.
+- [Çekilişler](/giveaways): Aktif ve tamamlanmış topluluk çekilişleri.
+- [Davet & Liderlik Tablosu](/leaderboard): Davet promosyonu detayları ve XP/davet sıralaması.
+- [Canlı Sistem Durumu](/status): Anlık CPU, RAM, sunucu çalışma durumu ve olay geçmişi.
+- [Sıkça Sorulan Sorular](/sss): Kurulum, faturalandırma, SFTP, yedekleme ve KVKK hakkında yanıtlar.
+
+## Yasal & İletişim
+- [Gizlilik Politikası ve KVKK Aydınlatma Metni](/gizlilik-politikasi): 6698 sayılı KVKK uyarınca veri işleme ve haklar.
+- [Hizmet Kullanım Şartları](/kullanim-sartlari): Kullanım kuralları, kabul edilebilir kullanım politikası ve hizmet koşulları.
+- [Çerez Politikası](/cerez-politikasi): Zorunlu ve isteğe bağlı analitik çerez kategorileri.
