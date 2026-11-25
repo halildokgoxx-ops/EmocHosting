@@ -156,8 +156,19 @@ export async function requireAuth(req, res, next) {
     };
 
     next();
-  } catch {
-    return res.status(401).json({ error: 'Geçersiz veya süresi dolmuş oturum.' });
+  } catch (err) {
+    const msg = err?.message || '';
+    // Firebase token errors — log for debugging but return user-friendly message
+    if (msg.includes('invalid signature') || msg.includes('id-token')) {
+      console.warn('[Auth] Firebase token doğrulama hatası:', msg.slice(0, 120));
+      return res.status(401).json({ error: 'Oturum süresi doldu. Lütfen yeniden giriş yapın.', code: 'TOKEN_INVALID' });
+    }
+    if (msg.includes('FIRESTORE') || msg.includes('Could not load') || msg.includes('UNAVAILABLE')) {
+      console.error('[Auth] Firestore bağlantı hatası:', msg.slice(0, 120));
+      return res.status(503).json({ error: 'Veritabanı bağlantısı kurulamadı. Lütfen kısa süre sonra tekrar deneyin.', code: 'DB_UNAVAILABLE' });
+    }
+    console.error('[Auth] Beklenmeyen hata:', msg.slice(0, 200));
+    return res.status(401).json({ error: 'Geçersiz veya süresi dolmuş oturum.', code: 'AUTH_ERROR' });
   }
 }
 

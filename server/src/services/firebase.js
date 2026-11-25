@@ -65,20 +65,29 @@ export function initFirebaseAdmin() {
       error: null,
     };
   } else if (isCloudMode) {
-    // Cloud Auth verification works without serviceAccountKey using Google public certs;
-    // Firestore falls back to local emulator until serviceAccountKey.json is provided.
+    // Cloud mode without serviceAccountKey: use applicationDefault if available,
+    // otherwise fall back to no-credential init (auth token verify still works via Google public certs).
+    // IMPORTANT: Never set emulator env vars in cloud mode — this causes token signature errors.
     delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
-    process.env.FIRESTORE_EMULATOR_HOST = ENV.FIRESTORE_EMULATOR_HOST;
-    app = admin.initializeApp({
-      projectId: ENV.FIREBASE_PROJECT_ID || 'emochosting',
-    });
+    delete process.env.FIRESTORE_EMULATOR_HOST;
+
+    let credential;
+    try {
+      credential = admin.credential.applicationDefault();
+    } catch {
+      credential = null;
+    }
+
+    const initOpts = { projectId: ENV.FIREBASE_PROJECT_ID || 'emochosting' };
+    if (credential) initOpts.credential = credential;
+
+    app = admin.initializeApp(initOpts);
     firebaseStatus = {
       initialized: true,
-      mode: 'hybrid-cloud-auth',
-      hasAdminCredentials: false,
+      mode: 'cloud-no-sa',
+      hasAdminCredentials: Boolean(credential),
       projectId: ENV.FIREBASE_PROJECT_ID || 'emochosting',
-      firestoreEmulatorHost: ENV.FIRESTORE_EMULATOR_HOST,
-      error: 'Cloud Auth aktif; Firestore için serviceAccountKey.json bekleniyor.',
+      error: credential ? null : 'serviceAccountKey.json bulunamadı; sadece Auth token doğrulama aktif.',
     };
   } else {
     process.env.FIREBASE_AUTH_EMULATOR_HOST = ENV.FIREBASE_AUTH_EMULATOR_HOST;
