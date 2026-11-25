@@ -30,6 +30,8 @@ export function compressionMiddleware({ threshold = 1024 } = {}) {
     let decided = false;
     let compressing = false;
     let zStream = null;
+    let downstreamPaused = false;
+    let zDrainPending = false;
 
     function shouldCompress(statusCode) {
       if (statusCode < 200 || statusCode === 204 || statusCode === 304) return false;
@@ -55,22 +57,39 @@ export function compressionMiddleware({ threshold = 1024 } = {}) {
       zStream =
         encoding === 'br'
           ? zlib.createBrotliCompress({
+              chunkSize: 64 * 1024,
               params: {
                 [zlib.constants.BROTLI_PARAM_QUALITY]: 4,
               },
             })
-          : zlib.createGzip({ level: 6 });
+          : zlib.createGzip({ level: 6, chunkSize: 64 * 1024 });
 
       zStream.on('data', (chunk) => {
         if (!origWrite(chunk)) {
+          downstreamPaused = true;
           zStream.pause();
         }
       });
+      zStream.on('drain', () => {
+        if (zDrainPending && !downstreamPaused) {
+          zDrainPending = false;
+          res.emit('drain');
+        }
+      });
       res.on('drain', () => {
-        if (zStream) zStream.resume();
+        if (downstreamPaused) {
+          downstreamPaused = false;
+          if (zStream && !zStream.destroyed) zStream.resume();
+          zDrainPending = false;
+        }
+      });
+      res.on('close', () => {
+        if (zStream && !zStream.destroyed) {
+          zStream.destroy();
+        }
       });
       zStream.on('end', () => {
-        origEnd();
+        if (!res.writableEnded) origEnd();
       });
       zStream.on('error', () => {
         if (!res.writableEnded) origEnd();
@@ -120,7 +139,9 @@ export function compressionMiddleware({ threshold = 1024 } = {}) {
         }
       }
       if (compressing && zStream) {
-        return zStream.write(chunk, enc, cb);
+        const ok = zStream.write(chunk, enc, cb);
+        if (!ok) zDrainPending = true;
+        return ok;
       }
       return origWrite(chunk, enc, cb);
     };

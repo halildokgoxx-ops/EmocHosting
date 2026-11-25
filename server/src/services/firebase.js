@@ -15,33 +15,100 @@ let firebaseStatus = {
   error: null,
 };
 
-function resolveServiceAccount() {
-  if (ENV.FIREBASE_CLIENT_EMAIL && ENV.FIREBASE_PRIVATE_KEY && ENV.FIREBASE_PROJECT_ID) {
-    return {
-      projectId: ENV.FIREBASE_PROJECT_ID,
-      clientEmail: ENV.FIREBASE_CLIENT_EMAIL,
-      privateKey: ENV.FIREBASE_PRIVATE_KEY
-        .trim()
-        .replace(/^["']|["']$/g, '')
-        .replace(/\\n/g, '\n')
-        .replace(/\\r/g, '')
-        .trim(),
-    };
+function normalizePrivateKeyPem(raw) {
+  let val = String(raw || '').trim();
+  if (!val || /BURAYA_/i.test(val)) return '';
+
+  // Remove accidental surrounding quotes added when pasting into hosting env UI
+  if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+    val = val.slice(1, -1).trim();
   }
 
+  // If user pasted the entire service account JSON into FIREBASE_PRIVATE_KEY
+  if (val.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(val);
+      if (parsed?.private_key) val = String(parsed.private_key);
+    } catch {}
+  }
+
+  val = val.replace(/\\r/g, '').replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim();
+
+  // Reconstruct valid PEM line wrapping if hosting UI collapsed newlines into spaces
+  const match = val.match(/-----BEGIN ([A-Z ]+)-----([\s\S]+?)-----END \1-----/);
+  if (match) {
+    const label = match[1];
+    const body = match[2].replace(/\s+/g, '');
+    const wrapped = body.match(/.{1,64}/g)?.join('\n') || body;
+    return `-----BEGIN ${label}-----\n${wrapped}\n-----END ${label}-----\n`;
+  }
+  return val;
+}
+
+function resolveServiceAccountCandidates() {
+  const candidates = [];
+
+  // 1) Optional single JSON or base64 env var
+  const rawJsonEnv = String(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '').trim();
+  if (rawJsonEnv) {
+    try {
+      const decoded = rawJsonEnv.startsWith('{')
+        ? rawJsonEnv
+        : Buffer.from(rawJsonEnv, 'base64').toString('utf8');
+      const parsed = JSON.parse(decoded);
+      if (parsed?.private_key) parsed.private_key = normalizePrivateKeyPem(parsed.private_key);
+      candidates.push({ source: 'env:FIREBASE_SERVICE_ACCOUNT_JSON', data: parsed });
+    } catch (e) {
+      console.warn('[Firebase] FIREBASE_SERVICE_ACCOUNT_JSON parse hatası:', e.message);
+    }
+  }
+
+  // 2) Individual env vars (supports accidental full JSON inside FIREBASE_PRIVATE_KEY too)
+  if (ENV.FIREBASE_PRIVATE_KEY && ENV.FIREBASE_PROJECT_ID) {
+    let rawPk = String(ENV.FIREBASE_PRIVATE_KEY).trim();
+    if (rawPk.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(rawPk);
+        if (parsed?.private_key) {
+          parsed.private_key = normalizePrivateKeyPem(parsed.private_key);
+          candidates.push({ source: 'env:FIREBASE_PRIVATE_KEY(json)', data: parsed });
+        }
+      } catch {}
+    }
+    if (ENV.FIREBASE_CLIENT_EMAIL && !/BURAYA_/i.test(ENV.FIREBASE_CLIENT_EMAIL)) {
+      const pk = normalizePrivateKeyPem(rawPk);
+      if (pk.includes('-----BEGIN')) {
+        candidates.push({
+          source: 'env:FIREBASE_CLIENT_EMAIL+KEY',
+          data: {
+            projectId: ENV.FIREBASE_PROJECT_ID,
+            clientEmail: ENV.FIREBASE_CLIENT_EMAIL.trim(),
+            privateKey: pk,
+          },
+        });
+      }
+    }
+  }
+
+  // 3) Secret file / local JSON files
   const candidatePaths = [
+    '/etc/secrets/serviceAccountKey.json',
     path.resolve(ENV.SERVER_DIR, ENV.FIREBASE_SERVICE_ACCOUNT_PATH),
     path.resolve(ENV.ROOT_DIR, ENV.FIREBASE_SERVICE_ACCOUNT_PATH),
     path.resolve(ENV.ROOT_DIR, 'serviceAccountKey.json'),
   ];
 
   for (const p of candidatePaths) {
-    if (fs.existsSync(p)) {
-      const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
-      return raw;
-    }
+    try {
+      if (fs.existsSync(p)) {
+        const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+        if (raw?.private_key) raw.private_key = normalizePrivateKeyPem(raw.private_key);
+        candidates.push({ source: `file:${path.basename(p)}`, data: raw });
+      }
+    } catch {}
   }
-  return null;
+
+  return candidates;
 }
 
 export function initFirebaseAdmin() {
@@ -52,29 +119,38 @@ export function initFirebaseAdmin() {
     return { app, auth, db, status: firebaseStatus };
   }
 
-  const serviceAccount = resolveServiceAccount();
+  const candidates = resolveServiceAccountCandidates();
   const isCloudMode = ENV.FIREBASE_MODE === 'cloud';
 
-  if (serviceAccount && isCloudMode) {
+  if (isCloudMode && candidates.length > 0) {
     delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
     delete process.env.FIRESTORE_EMULATOR_HOST;
-    // Wrap cert() in try-catch — Node 24 / OpenSSL 3 may reject PKCS#1 keys.
-    // Fall through to no-credential mode if parsing fails.
+
     let certCredential = null;
-    try {
-      certCredential = admin.credential.cert(serviceAccount);
-    } catch (certErr) {
-      console.warn('[Firebase] Service account key parse hatası, no-credential moda düşülüyor:', certErr.message);
+    let chosenData = null;
+    for (const c of candidates) {
+      try {
+        certCredential = admin.credential.cert(c.data);
+        chosenData = c.data;
+        break;
+      } catch (certErr) {
+        console.warn(`[Firebase] Kimlik kaynağı atlandı (${c.source}):`, certErr.message);
+      }
     }
-    const projectId = serviceAccount.project_id || serviceAccount.projectId || ENV.FIREBASE_PROJECT_ID;
+
+    const projectId = chosenData?.project_id || chosenData?.projectId || ENV.FIREBASE_PROJECT_ID;
     if (certCredential) {
       app = admin.initializeApp({ credential: certCredential, projectId });
       firebaseStatus = { initialized: true, mode: 'cloud', hasAdminCredentials: true, projectId, error: null };
     } else {
-      // Fall through to no-credential cloud mode
       app = admin.initializeApp({ projectId });
-      firebaseStatus = { initialized: true, mode: 'cloud-no-sa', hasAdminCredentials: false, projectId,
-        error: 'Service account key parse edilemedi; Auth-only mod aktif.' };
+      firebaseStatus = {
+        initialized: true,
+        mode: 'cloud-no-sa',
+        hasAdminCredentials: false,
+        projectId,
+        error: 'Geçerli service account bulunamadı; Auth-only mod aktif.',
+      };
     }
   } else if (isCloudMode) {
     // Cloud mode without serviceAccountKey: use applicationDefault if available,

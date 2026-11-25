@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { db } from './firebase.js';
+import { db, firebaseStatus } from './firebase.js';
 import { collectTelemetrySnapshot } from './telemetry.js';
 import {
   activeProcesses,
@@ -27,6 +27,7 @@ export function startSchedulers(io) {
 
   // Run every minute for real expirations & scheduled server tasks
   cronJob = cron.schedule('* * * * *', async () => {
+    if (firebaseStatus.mode !== 'emulator' && !firebaseStatus.hasAdminCredentials) return;
     const now = Date.now();
     try {
       const cfgSnap = await db.collection('system_config').doc('global').get();
