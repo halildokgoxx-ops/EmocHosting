@@ -56,17 +56,24 @@ export function initFirebaseAdmin() {
   if (serviceAccount && isCloudMode) {
     delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
     delete process.env.FIRESTORE_EMULATOR_HOST;
-    app = admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      projectId: serviceAccount.project_id || ENV.FIREBASE_PROJECT_ID,
-    });
-    firebaseStatus = {
-      initialized: true,
-      mode: 'cloud',
-      hasAdminCredentials: true,
-      projectId: serviceAccount.project_id || ENV.FIREBASE_PROJECT_ID,
-      error: null,
-    };
+    // Wrap cert() in try-catch — Node 24 / OpenSSL 3 may reject PKCS#1 keys.
+    // Fall through to no-credential mode if parsing fails.
+    let certCredential = null;
+    try {
+      certCredential = admin.credential.cert(serviceAccount);
+    } catch (certErr) {
+      console.warn('[Firebase] Service account key parse hatası, no-credential moda düşülüyor:', certErr.message);
+    }
+    const projectId = serviceAccount.project_id || serviceAccount.projectId || ENV.FIREBASE_PROJECT_ID;
+    if (certCredential) {
+      app = admin.initializeApp({ credential: certCredential, projectId });
+      firebaseStatus = { initialized: true, mode: 'cloud', hasAdminCredentials: true, projectId, error: null };
+    } else {
+      // Fall through to no-credential cloud mode
+      app = admin.initializeApp({ projectId });
+      firebaseStatus = { initialized: true, mode: 'cloud-no-sa', hasAdminCredentials: false, projectId,
+        error: 'Service account key parse edilemedi; Auth-only mod aktif.' };
+    }
   } else if (isCloudMode) {
     // Cloud mode without serviceAccountKey: use applicationDefault if available,
     // otherwise fall back to no-credential init (auth token verify still works via Google public certs).
