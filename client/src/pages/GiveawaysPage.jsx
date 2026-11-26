@@ -18,7 +18,7 @@ function remainingStr(endsAt) {
 }
 
 export function GiveawaysPage() {
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, currencyLabel } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -97,7 +97,7 @@ export function GiveawaysPage() {
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
-                      {g.prizeLabel || `${g.prizeValue} İnvite`}
+                      {g.prizeLabel || `${g.prizeValue} ${currencyLabel}`}
                     </span>
                     <span className="font-mono text-zinc-400">{remainingStr(g.endsAt)}</span>
                   </div>

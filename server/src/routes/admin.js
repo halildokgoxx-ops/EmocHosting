@@ -652,6 +652,54 @@ router.delete('/packages/:id', adminWriteLimiter, async (req, res) => {
   }
 });
 
+router.post('/packages/bulk-price', adminWriteLimiter, async (req, res) => {
+  try {
+    const category =
+      req.body?.category === 'all' || ALLOWED_CATEGORIES.has(req.body?.category)
+        ? req.body.category
+        : 'all';
+    const percentChange = parseFiniteNumber(req.body?.percentChange, {
+      min: -90,
+      max: 500,
+      label: 'Fiyat değişim oranı (%)',
+    });
+    if (percentChange === 0) {
+      return res.status(400).json({ error: 'Yüzde değişim oranı 0 olamaz' });
+    }
+    const factor = 1 + percentChange / 100;
+    const snap = await db.collection('packages').get();
+    const batch = db.batch();
+    let updatedCount = 0;
+
+    for (const d of snap.docs) {
+      const p = d.data();
+      if (category !== 'all' && p.category !== category) continue;
+      const roundPrice = (val) => Math.max(0, Number((Number(val || 0) * factor).toFixed(2)));
+      batch.update(d.ref, {
+        priceDaily: roundPrice(p.priceDaily),
+        priceWeekly: roundPrice(p.priceWeekly),
+        priceMonthly: roundPrice(p.priceMonthly),
+        updatedAt: Date.now(),
+      });
+      updatedCount += 1;
+    }
+
+    if (updatedCount > 0) {
+      await batch.commit();
+      invalidateBootstrapCache();
+    }
+    await writeAuditLog({
+      actorEmail: req.user.email,
+      action: 'PACKAGES_BULK_PRICE_ADJUSTED',
+      targetType: 'package',
+      details: { category, percentChange, updatedCount },
+    });
+    res.json({ ok: true, updatedCount, percentChange, category });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // 13. Coupons System
 router.get('/coupons', async (req, res) => {
   const snap = await db.collection('coupons').get();
@@ -828,6 +876,41 @@ router.patch('/config', adminWriteLimiter, async (req, res) => {
     }
     if (sanitizedRest.nightMarketBoxCount !== undefined) {
       sanitizedRest.nightMarketBoxCount = parseFiniteNumber(sanitizedRest.nightMarketBoxCount, { min: 1, max: 6, integer: true, label: 'Gece Pazarı Kutu Sayısı' });
+    }
+    if (sanitizedRest.currencyLabel !== undefined) {
+      sanitizedRest.currencyLabel = sanitizeString(sanitizedRest.currencyLabel, { minLen: 1, maxLen: 24 }) || 'İnvite';
+    }
+    if (sanitizedRest.defaultBillingCycle !== undefined) {
+      sanitizedRest.defaultBillingCycle = ['daily', 'weekly', 'monthly'].includes(sanitizedRest.defaultBillingCycle)
+        ? sanitizedRest.defaultBillingCycle
+        : 'monthly';
+    }
+    if (sanitizedRest.taxRatePct !== undefined) {
+      sanitizedRest.taxRatePct = parseFiniteNumber(sanitizedRest.taxRatePct, { min: 0, max: 50, label: 'Vergi / İşlem Payı (%)' });
+    }
+    if (sanitizedRest.renewalGraceHours !== undefined) {
+      sanitizedRest.renewalGraceHours = parseFiniteNumber(sanitizedRest.renewalGraceHours, { min: 0, max: 168, integer: true, label: 'Yenileme Toleransı (saat)' });
+    }
+    if (sanitizedRest.maxCollaboratorsPerServer !== undefined) {
+      sanitizedRest.maxCollaboratorsPerServer = parseFiniteNumber(sanitizedRest.maxCollaboratorsPerServer, { min: 0, max: 50, integer: true, label: 'Sunucu Ortak Limiti' });
+    }
+    if (sanitizedRest.globalMaxRamMb !== undefined) {
+      sanitizedRest.globalMaxRamMb = parseFiniteNumber(sanitizedRest.globalMaxRamMb, { min: 512, max: 10_000_000, integer: true, label: 'Global RAM Havuzu (MB)' });
+    }
+    if (sanitizedRest.defaultStartingBalance !== undefined) {
+      sanitizedRest.defaultStartingBalance = parseFiniteNumber(sanitizedRest.defaultStartingBalance, { min: 0, max: 1_000_000, label: 'Başlangıç Bakiyesi' });
+    }
+    if (sanitizedRest.cpuAlertThresholdPct !== undefined) {
+      sanitizedRest.cpuAlertThresholdPct = parseFiniteNumber(sanitizedRest.cpuAlertThresholdPct, { min: 10, max: 100, integer: true, label: 'CPU Alarm Eşiği' });
+    }
+    if (sanitizedRest.ramAlertThresholdPct !== undefined) {
+      sanitizedRest.ramAlertThresholdPct = parseFiniteNumber(sanitizedRest.ramAlertThresholdPct, { min: 10, max: 100, integer: true, label: 'RAM Alarm Eşiği' });
+    }
+    if (sanitizedRest.inviteRewardInviter !== undefined) {
+      sanitizedRest.inviteRewardInviter = parseFiniteNumber(sanitizedRest.inviteRewardInviter, { min: 0, max: 100000, label: 'Davet Eden Ödülü' });
+    }
+    if (sanitizedRest.inviteRewardInvited !== undefined) {
+      sanitizedRest.inviteRewardInvited = parseFiniteNumber(sanitizedRest.inviteRewardInvited, { min: 0, max: 100000, label: 'Davet Edilen Ödülü' });
     }
 
     const updates = { ...sanitizedRest, updatedAt: Date.now(), updatedBy: req.user.email };

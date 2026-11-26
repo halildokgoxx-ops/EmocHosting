@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { auth, db, firebaseStatus, verifyFirebaseToken } from '../services/firebase.js';
+import { pushUserNotification } from '../services/notifications.js';
 import { ENV } from '../config/env.js';
 import { getClientIp, isSafeHttpUrl, sanitizeString } from '../utils/security.js';
 
@@ -107,6 +108,18 @@ export async function requireAuth(req, res, next) {
       };
       await userRef.set(initialData);
       userSnap = await userRef.get();
+      if (sysConfig.welcomeNotificationEnabled !== false) {
+        const welcomeMsg =
+          String(sysConfig.welcomeNotificationMessage || '').trim() ||
+          `${sysConfig.siteName || 'EmoçHosting'} dünyasına hoş geldiniz! Paketlere ve Gece Pazarı fırsatlarına göz atabilirsiniz.`;
+        pushUserNotification({
+          uid,
+          title: `Hoş Geldiniz, ${safeDisplayName}!`,
+          message: welcomeMsg,
+          type: 'info',
+          createdBy: 'system',
+        }).catch(() => {});
+      }
     } else if (!decoded.viaApiKey) {
       const updatePatch = {
         lastIp: clientIp,

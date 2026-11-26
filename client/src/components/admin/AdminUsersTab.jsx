@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { apiRequest } from '../../lib/api';
 import { ADMIN_API_PREFIX } from '../../lib/adminConfig';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedButton } from '../ui/AnimatedButton';
 import { WalletCoinIcon, BanHammerIcon, ShieldAdminIcon } from '../icons/EmoIcons';
 
 export function AdminUsersTab({ users, isOwner, onRefresh }) {
   const toast = useToast();
+  const { currencyLabel } = useAuth();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [activeUser, setActiveUser] = useState(null);
@@ -62,7 +64,7 @@ export function AdminUsersTab({ users, isOwner, onRefresh }) {
         method: 'POST',
         body: { mode: balMode, amount: Number(balAmount), note: balNote },
       });
-      toast.success(`Yeni bakiye: ${res.balance} İnvite`);
+      toast.success(`Yeni bakiye: ${res.balance} ${currencyLabel}`);
       setActiveUser((u) => ({ ...u, balance: res.balance }));
       onRefresh();
     } catch (err) {
@@ -149,7 +151,7 @@ export function AdminUsersTab({ users, isOwner, onRefresh }) {
       {bulkOpen && (
         <form onSubmit={sendBulkBonus} className="glass-panel rounded-2xl p-5 border-amber-500/35 grid grid-cols-1 sm:grid-cols-5 gap-3 items-end text-xs">
           <div>
-            <label className="text-zinc-400 block mb-1">Bonus Bakiye (İnvite)</label>
+            <label className="text-zinc-400 block mb-1">Bonus Bakiye ({currencyLabel})</label>
             <input type="number" step="0.01" min="0" value={bulkBonus.balanceBonus} onChange={(e) => setBulkBonus({ ...bulkBonus, balanceBonus: e.target.value })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
           </div>
           <div>
@@ -175,7 +177,7 @@ export function AdminUsersTab({ users, isOwner, onRefresh }) {
                 <div className="font-bold text-white truncate">{u.displayName}</div>
                 <div className="font-mono text-zinc-400 truncate">{u.email}</div>
               </div>
-              <span className="font-mono font-bold text-emerald-300 shrink-0">{Number(u.balance || 0).toFixed(2)} İnvite</span>
+              <span className="font-mono font-bold text-emerald-300 shrink-0">{Number(u.balance || 0).toFixed(2)} {currencyLabel}</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               <AnimatedButton
@@ -235,8 +237,8 @@ export function AdminUsersTab({ users, isOwner, onRefresh }) {
                   </div>
                 </td>
                 <td className="p-4 font-mono">
-                  <div className="text-emerald-300 font-bold">{Number(u.balance || 0).toFixed(2)} İnvite</div>
-                  <div className="text-zinc-500">Harcama: {u.totalSpent || 0} İnvite</div>
+                  <div className="text-emerald-300 font-bold">{Number(u.balance || 0).toFixed(2)} {currencyLabel}</div>
+                  <div className="text-zinc-500">Harcama: {u.totalSpent || 0} {currencyLabel}</div>
                 </td>
                 <td className="p-4 font-mono text-zinc-300">
                   {u.serverCount || 0} Sunucu • {u.referralCount || 0} Davet • {u.xp || 0} XP
@@ -290,7 +292,7 @@ export function AdminUsersTab({ users, isOwner, onRefresh }) {
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="font-display text-xl font-bold text-white">{activeUser.displayName}</h3>
-                <div className="text-xs font-mono text-amber-300">{activeUser.email} • Mevcut: {activeUser.balance} İnvite</div>
+                <div className="text-xs font-mono text-amber-300">{activeUser.email} • Mevcut: {activeUser.balance} {currencyLabel}</div>
                 <div className="text-[11px] font-mono text-zinc-500 mt-1">
                   IP: {activeUser.lastIp || '-'} • Kayıt: {activeUser.createdAt ? new Date(activeUser.createdAt).toLocaleDateString('tr-TR') : '-'} • ToS: {activeUser.acceptedTermsAt ? 'Evet' : 'Hayır'}
                 </div>

@@ -34,10 +34,11 @@ export function startSchedulers(io) {
       const sysCfg = cfgSnap.exists ? cfgSnap.data() : {};
 
       if (sysCfg.autoSuspendExpired !== false) {
+        const graceMs = Math.max(0, Number(sysCfg.renewalGraceHours || 0)) * 60 * 60 * 1000;
         const serversSnap = await db.collection('servers').get();
         for (const doc of serversSnap.docs) {
           const srv = { id: doc.id, ...doc.data() };
-          if (srv.expiresAt && now > srv.expiresAt && srv.status !== 'suspended') {
+          if (srv.expiresAt && now > Number(srv.expiresAt) + graceMs && srv.status !== 'suspended') {
             await stopServer(srv.id, { pause: false, forceKill: true }).catch(() => {});
             await db.collection('servers').doc(srv.id).update({
               status: 'suspended',

@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { apiRequest } from '../../lib/api';
 import { ADMIN_API_PREFIX } from '../../lib/adminConfig';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedButton } from '../ui/AnimatedButton';
 import { CouponTagIcon, TrashIcon, PlusIcon, CopyIcon, EditFileIcon, SearchGlassIcon } from '../icons/EmoIcons';
 
 export function AdminCouponsTab({ coupons = [], config = {}, onRefresh }) {
   const toast = useToast();
+  const { currencyLabel } = useAuth();
   const [creating, setCreating] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -198,7 +200,7 @@ export function AdminCouponsTab({ coupons = [], config = {}, onRefresh }) {
             <label className="text-[10px] text-zinc-400 block mb-1">İndirim Tipi</label>
             <select value={newCoupon.discountType} onChange={(e) => setNewCoupon({ ...newCoupon, discountType: e.target.value })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white">
               <option value="percent">% Yüzde</option>
-              <option value="fixed">Sabit İnvite</option>
+              <option value="fixed">Sabit {currencyLabel}</option>
             </select>
           </div>
           <div>
@@ -288,10 +290,10 @@ export function AdminCouponsTab({ coupons = [], config = {}, onRefresh }) {
                     </button>
                   </div>
                   <div className="text-zinc-300 mt-1">
-                    {c.discountType === 'percent' ? `%${c.value} İndirim` : `${c.value} İnvite İndirim`} • Kategori: <span className="uppercase font-mono">{c.categoryFilter || 'all'}</span>
+                    {c.discountType === 'percent' ? `%${c.value} İndirim` : `${c.value} ${currencyLabel} İndirim`} • Kategori: <span className="uppercase font-mono">{c.categoryFilter || 'all'}</span>
                   </div>
                   <div className="text-zinc-500 text-[11px] font-mono">
-                    Kullanım: {c.usedCount || 0}/{c.maxUses} • Min: {c.minAmount || 0} İnvite
+                    Kullanım: {c.usedCount || 0}/{c.maxUses} • Min: {c.minAmount || 0} {currencyLabel}
                     {c.expiresAt ? ` • Bitiş: ${new Date(c.expiresAt).toLocaleDateString('tr-TR')}` : ''}
                   </div>
                 </div>
@@ -368,7 +370,7 @@ export function AdminCouponsTab({ coupons = [], config = {}, onRefresh }) {
                 <label className="text-zinc-400 block mb-1">İndirim Tipi</label>
                 <select value={editing.discountType} onChange={(e) => setEditing({ ...editing, discountType: e.target.value })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white">
                   <option value="percent">% Yüzde</option>
-                  <option value="fixed">Sabit İnvite</option>
+                  <option value="fixed">Sabit {currencyLabel}</option>
                 </select>
               </div>
               <div>

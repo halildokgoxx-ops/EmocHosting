@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { apiRequest } from '../../lib/api';
 import { ADMIN_API_PREFIX } from '../../lib/adminConfig';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedButton } from '../ui/AnimatedButton';
 import { TrashIcon, PlusIcon, EditFileIcon, SearchGlassIcon } from '../icons/EmoIcons';
@@ -25,12 +26,16 @@ const DEFAULT_NEW_PKG = {
 
 export function AdminPackagesTab({ packages = [], onRefresh }) {
   const toast = useToast();
+  const { currencyLabel } = useAuth();
   const [newPkg, setNewPkg] = useState(DEFAULT_NEW_PKG);
   const [editing, setEditing] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [creating, setCreating] = useState(false);
   const [catFilter, setCatFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [bulkCat, setBulkCat] = useState('all');
+  const [bulkPct, setBulkPct] = useState(10);
+  const [applyingBulk, setApplyingBulk] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -113,6 +118,31 @@ export function AdminPackagesTab({ packages = [], onRefresh }) {
     }
   }
 
+  async function applyBulkPrice(e) {
+    e.preventDefault();
+    const pct = Number(bulkPct);
+    if (!Number.isFinite(pct) || pct === 0) {
+      toast.warning('Geçerli bir yüzde oranı girin (örn: 15 veya -20)');
+      return;
+    }
+    if (!window.confirm(`${bulkCat === 'all' ? 'Tüm kategorilerdeki' : bulkCat} paket fiyatlarına %${pct > 0 ? `+${pct}` : pct} değişim uygulansın mı?`)) {
+      return;
+    }
+    setApplyingBulk(true);
+    try {
+      const res = await apiRequest(`${ADMIN_API_PREFIX}/packages/bulk-price`, {
+        method: 'POST',
+        body: { category: bulkCat, percentChange: pct },
+      });
+      toast.success(`${res.updatedCount} paketin fiyatları güncellendi!`);
+      onRefresh();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setApplyingBulk(false);
+    }
+  }
+
   const totalSales = packages.reduce((acc, p) => acc + Number(p.salesCount || 0), 0);
   const pausedCount = packages.filter((p) => p.paused).length;
   const featuredCount = packages.filter((p) => p.featured).length;
@@ -160,16 +190,16 @@ export function AdminPackagesTab({ packages = [], onRefresh }) {
             <input required value={newPkg.name} onChange={(e) => setNewPkg({ ...newPkg, name: e.target.value })} placeholder="Örn: MC Zümrüt VDS" className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
           </div>
           <div>
-            <label className="text-[10px] text-zinc-400 block mb-1">Günlük (İnvite)</label>
-            <input type="number" min={0} value={newPkg.priceDaily} onChange={(e) => setNewPkg({ ...newPkg, priceDaily: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+            <label className="text-[10px] text-zinc-400 block mb-1">Günlük ({currencyLabel})</label>
+            <input type="number" step="0.01" min={0} value={newPkg.priceDaily} onChange={(e) => setNewPkg({ ...newPkg, priceDaily: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
           </div>
           <div>
-            <label className="text-[10px] text-zinc-400 block mb-1">Haftalık (İnvite)</label>
-            <input type="number" min={0} value={newPkg.priceWeekly} onChange={(e) => setNewPkg({ ...newPkg, priceWeekly: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+            <label className="text-[10px] text-zinc-400 block mb-1">Haftalık ({currencyLabel})</label>
+            <input type="number" step="0.01" min={0} value={newPkg.priceWeekly} onChange={(e) => setNewPkg({ ...newPkg, priceWeekly: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
           </div>
           <div>
-            <label className="text-[10px] text-zinc-400 block mb-1">Aylık (İnvite)</label>
-            <input type="number" min={0} value={newPkg.priceMonthly} onChange={(e) => setNewPkg({ ...newPkg, priceMonthly: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+            <label className="text-[10px] text-zinc-400 block mb-1">Aylık ({currencyLabel})</label>
+            <input type="number" step="0.01" min={0} value={newPkg.priceMonthly} onChange={(e) => setNewPkg({ ...newPkg, priceMonthly: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
           </div>
           <div>
             <label className="text-[10px] text-zinc-400 block mb-1">RAM (MB)</label>
@@ -205,6 +235,33 @@ export function AdminPackagesTab({ packages = [], onRefresh }) {
           </div>
         </form>
       </div>
+
+      {/* Bulk Price Adjuster */}
+      <form onSubmit={applyBulkPrice} className="glass-panel rounded-3xl p-5 flex flex-wrap items-end justify-between gap-3 border-amber-500/20">
+        <div>
+          <h4 className="font-display text-base font-bold text-white">Toplu Paket Fiyatlandırma Aracı</h4>
+          <p className="text-zinc-400 mt-0.5">Seçili kategorideki paketlerin günlük, haftalık ve aylık fiyatlarını yüzdesel olarak artırın veya azaltın. Birim: <strong className="text-amber-300">{currencyLabel}</strong></p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="text-[10px] text-zinc-400 block mb-1">Kategori</label>
+            <select value={bulkCat} onChange={(e) => setBulkCat(e.target.value)} className="px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white">
+              <option value="all">Tüm Paketler</option>
+              <option value="minecraft">Minecraft</option>
+              <option value="web">Website</option>
+              <option value="discord">Discord Bot</option>
+              <option value="altyapi">Altyapı</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-zinc-400 block mb-1">Değişim (% Örn: +15 / -20)</label>
+            <input type="number" step="0.5" min={-90} max={500} value={bulkPct} onChange={(e) => setBulkPct(Number(e.target.value))} className="w-32 px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white font-mono" />
+          </div>
+          <AnimatedButton type="submit" size="sm" variant="warning" loading={applyingBulk}>
+            Fiyatlara Uygula
+          </AnimatedButton>
+        </div>
+      </form>
 
       {/* Filter & Package List */}
       <div className="glass-panel rounded-3xl p-6 space-y-4">
@@ -253,7 +310,7 @@ export function AdminPackagesTab({ packages = [], onRefresh }) {
                   {p.paused && <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 text-[10px]">DURAKLATILDI</span>}
                 </div>
                 <div className="text-zinc-400 font-mono text-[11px]">
-                  Gün: {p.priceDaily} • Hafta: {p.priceWeekly} • Ay: {p.priceMonthly} İnvite | {p.ramMb}MB RAM • {p.cpuCores} vCPU ({p.cpuLimitPct || 100}%) • {Math.round((p.diskMb || 0) / 1024)}GB NVMe | Sıra: #{p.sortOrder ?? 99} • Satış: {p.salesCount || 0}
+                  Gün: {p.priceDaily} • Hafta: {p.priceWeekly} • Ay: {p.priceMonthly} {currencyLabel} | {p.ramMb}MB RAM • {p.cpuCores} vCPU ({p.cpuLimitPct || 100}%) • {Math.round((p.diskMb || 0) / 1024)}GB NVMe | Sıra: #{p.sortOrder ?? 99} • Satış: {p.salesCount || 0}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -302,16 +359,16 @@ export function AdminPackagesTab({ packages = [], onRefresh }) {
                 <input required value={editing.name || ''} onChange={(e) => setEditing({ ...editing, name: e.target.value })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
               </div>
               <div>
-                <label className="text-zinc-400 block mb-1">Günlük (İnvite)</label>
-                <input type="number" min={0} value={editing.priceDaily ?? 0} onChange={(e) => setEditing({ ...editing, priceDaily: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+                <label className="text-zinc-400 block mb-1">Günlük ({currencyLabel})</label>
+                <input type="number" step="0.01" min={0} value={editing.priceDaily ?? 0} onChange={(e) => setEditing({ ...editing, priceDaily: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
               </div>
               <div>
-                <label className="text-zinc-400 block mb-1">Haftalık (İnvite)</label>
-                <input type="number" min={0} value={editing.priceWeekly ?? 0} onChange={(e) => setEditing({ ...editing, priceWeekly: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+                <label className="text-zinc-400 block mb-1">Haftalık ({currencyLabel})</label>
+                <input type="number" step="0.01" min={0} value={editing.priceWeekly ?? 0} onChange={(e) => setEditing({ ...editing, priceWeekly: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
               </div>
               <div>
-                <label className="text-zinc-400 block mb-1">Aylık (İnvite)</label>
-                <input type="number" min={0} value={editing.priceMonthly ?? 0} onChange={(e) => setEditing({ ...editing, priceMonthly: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+                <label className="text-zinc-400 block mb-1">Aylık ({currencyLabel})</label>
+                <input type="number" step="0.01" min={0} value={editing.priceMonthly ?? 0} onChange={(e) => setEditing({ ...editing, priceMonthly: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
               </div>
               <div>
                 <label className="text-zinc-400 block mb-1">RAM (MB)</label>

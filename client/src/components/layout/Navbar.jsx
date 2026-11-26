@@ -19,7 +19,7 @@ import { apiRequest, safeExternalUrl } from '../../lib/api';
 import { ADMIN_ROUTE_PATH } from '../../lib/adminConfig';
 
 export function Navbar({ onOpenCmd }) {
-  const { user, firebaseUser, isAdmin, logout, bootstrap } = useAuth();
+  const { user, firebaseUser, isAdmin, logout, bootstrap, currencyLabel } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -168,7 +168,7 @@ export function Navbar({ onOpenCmd }) {
                   className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-white/[0.08] hover:border-amber-500/35 text-xs font-semibold text-zinc-200 transition whitespace-nowrap"
                 >
                   <WalletCoinIcon className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{Number(user?.balance || 0).toFixed(2)} İnvite</span>
+                  <span>{Number(user?.balance || 0).toFixed(2)} {currencyLabel}</span>
                 </button>
 
                 {/* Notifications */}
@@ -306,7 +306,7 @@ export function Navbar({ onOpenCmd }) {
                           <div className="text-xs font-bold text-white truncate">{user?.displayName}</div>
                           <div className="text-[11px] text-zinc-400 truncate">{firebaseUser.email}</div>
                           <div className="mt-1.5 flex items-center justify-between text-[11px]">
-                            <span className="text-amber-400 font-semibold">{Number(user?.balance || 0).toFixed(2)} İnvite</span>
+                            <span className="text-amber-400 font-semibold">{Number(user?.balance || 0).toFixed(2)} {currencyLabel}</span>
                             <span className="text-zinc-500">{user?.xp || 0} XP</span>
                           </div>
                         </div>

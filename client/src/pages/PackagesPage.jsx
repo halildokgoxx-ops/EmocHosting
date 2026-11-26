@@ -31,12 +31,18 @@ export function PackagesPage() {
   const [heavyMods, setHeavyMods] = useState(false);
   const [compareIds, setCompareIds] = useState([]);
 
-  const { bootstrap, firebaseUser, user, refreshProfile, refreshBootstrap } = useAuth();
+  const { bootstrap, firebaseUser, user, refreshProfile, refreshBootstrap, currencyLabel } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
   const packages = bootstrap?.packages || [];
   const cfg = bootstrap?.config || {};
+
+  useEffect(() => {
+    if (cfg.defaultBillingCycle && ['daily', 'weekly', 'monthly'].includes(cfg.defaultBillingCycle)) {
+      setCycle(cfg.defaultBillingCycle);
+    }
+  }, [cfg.defaultBillingCycle]);
 
   useEffect(() => {
     const q = searchParams.get('q');
@@ -108,7 +114,7 @@ export function PackagesPage() {
       itemListElement: packages.slice(0, 15).map((pkg) => ({
         '@type': 'Offer',
         name: pkg.name,
-        description: `${pkg.description || `${pkg.ramMb} MB RAM, ${pkg.cpuCores} vCPU sunucu paketi`} — Aylık ${Number(pkg.priceMonthly || 0)} İnvite`,
+        description: `${pkg.description || `${pkg.ramMb} MB RAM, ${pkg.cpuCores} vCPU sunucu paketi`} — Aylık ${Number(pkg.priceMonthly || 0)} ${currencyLabel}`,
         availability: pkg.paused ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
       })),
     };
@@ -136,7 +142,7 @@ export function PackagesPage() {
         body: { code: couponCode, packageId: selectedPkg.id, billingCycle: cycle },
       });
       setCouponCheck(data);
-      toast.success(`Kupon uygulandı! İndirim: -${data.couponDiscount} İnvite`);
+      toast.success(`Kupon uygulandı! İndirim: -${data.couponDiscount} ${currencyLabel}`);
     } catch (err) {
       setCouponCheck(null);
       toast.error(err.message);
@@ -373,8 +379,8 @@ export function PackagesPage() {
                 <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">{pkg.description}</p>
 
                 <div className="flex items-baseline gap-2 pt-1">
-                  <span className="font-display text-3xl sm:text-4xl font-black text-white">{final} İnvite</span>
-                  {final < base && <span className="text-sm line-through text-zinc-500">{base} İnvite</span>}
+                  <span className="font-display text-3xl sm:text-4xl font-black text-white">{final} {currencyLabel}</span>
+                  {final < base && <span className="text-sm line-through text-zinc-500">{base} {currencyLabel}</span>}
                   <span className="text-xs text-zinc-400">
                     / {cycle === 'daily' ? 'Gün' : cycle === 'weekly' ? 'Hafta' : 'Ay'}
                   </span>
@@ -454,7 +460,7 @@ export function PackagesPage() {
                   <td className="py-2.5 pr-4 text-zinc-400">Dönem Fiyatı</td>
                   {comparePackages.map((p) => (
                     <td key={p.id} className="py-2.5 px-3 font-bold text-amber-300">
-                      {getEffectivePrice(p)} İnvite
+                      {getEffectivePrice(p)} {currencyLabel}
                     </td>
                   ))}
                 </tr>
@@ -486,7 +492,7 @@ export function PackagesPage() {
                   <td className="py-2.5 pr-4 text-zinc-400">1 GB RAM Maliyet Oranı</td>
                   {comparePackages.map((p) => {
                     const perGb = p.ramMb > 0 ? getEffectivePrice(p) / (p.ramMb / 1024) : 0;
-                    return <td key={p.id} className="py-2.5 px-3 text-emerald-300 font-mono">{perGb.toFixed(2)} İnvite / GB</td>;
+                    return <td key={p.id} className="py-2.5 px-3 text-emerald-300 font-mono">{perGb.toFixed(2)} {currencyLabel} / GB</td>;
                   })}
                 </tr>
               </tbody>
@@ -528,7 +534,7 @@ export function PackagesPage() {
                 </div>
                 <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/25">
                   <WalletCoinIcon className="w-4 h-4" />
-                  <span>{Number(user?.balance || 0).toFixed(2)} İnvite</span>
+                  <span>{Number(user?.balance || 0).toFixed(2)} {currencyLabel}</span>
                 </div>
               </div>
 
@@ -575,24 +581,41 @@ export function PackagesPage() {
               <div className="rounded-xl bg-[#09090b] border border-white/[0.08] p-4 space-y-2 text-sm">
                 <div className="flex justify-between text-zinc-400">
                   <span>Paket Ücreti</span>
-                  <span>{getBasePrice(selectedPkg)} İnvite</span>
+                  <span>{getBasePrice(selectedPkg)} {currencyLabel}</span>
                 </div>
                 {getEffectivePrice(selectedPkg) < getBasePrice(selectedPkg) && (
                   <div className="flex justify-between text-rose-400">
                     <span>Flash İndirim (%{cfg.flashSalePercent})</span>
-                    <span>-{(getBasePrice(selectedPkg) - getEffectivePrice(selectedPkg)).toFixed(2)} İnvite</span>
+                    <span>-{(getBasePrice(selectedPkg) - getEffectivePrice(selectedPkg)).toFixed(2)} {currencyLabel}</span>
                   </div>
                 )}
                 {couponCheck && (
                   <div className="flex justify-between text-emerald-400">
                     <span>Kupon ({couponCheck.code})</span>
-                    <span>-{couponCheck.couponDiscount} İnvite</span>
+                    <span>-{couponCheck.couponDiscount} {currencyLabel}</span>
+                  </div>
+                )}
+                {Number(cfg.taxRatePct || 0) > 0 && (
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Vergi / İşlem Payı (%{cfg.taxRatePct})</span>
+                    <span>
+                      +{(
+                        (couponCheck
+                          ? couponCheck.finalPrice - (couponCheck.taxAmount || 0)
+                          : getEffectivePrice(selectedPkg)) *
+                        (Number(cfg.taxRatePct) / 100)
+                      ).toFixed(2)}{' '}
+                      {currencyLabel}
+                    </span>
                   </div>
                 )}
                 <div className="border-t border-white/[0.08] pt-2 flex justify-between font-display text-lg font-extrabold text-white">
                   <span>Ödenecek Tutar</span>
                   <span className="text-amber-400">
-                    {couponCheck ? couponCheck.finalPrice : getEffectivePrice(selectedPkg)} İnvite
+                    {couponCheck
+                      ? couponCheck.finalPrice
+                      : Number((getEffectivePrice(selectedPkg) * (1 + Number(cfg.taxRatePct || 0) / 100)).toFixed(2))}{' '}
+                    {currencyLabel}
                   </span>
                 </div>
               </div>

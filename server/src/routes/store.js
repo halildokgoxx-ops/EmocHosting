@@ -48,6 +48,7 @@ function calculateFinalPrice(basePrice, sysCfg, couponDoc = null, category = 'al
   let price = basePrice;
   let flashDiscount = 0;
   let couponDiscount = 0;
+  const currency = sysCfg?.currencyLabel || 'İnvite';
 
   if (sysCfg?.flashSalePercent > 0 && (!sysCfg.flashSaleEndsAt || Date.now() < sysCfg.flashSaleEndsAt)) {
     flashDiscount = Number(((price * Number(sysCfg.flashSalePercent)) / 100).toFixed(2));
@@ -65,7 +66,7 @@ function calculateFinalPrice(basePrice, sysCfg, couponDoc = null, category = 'al
       throw new Error(`Bu kupon sadece ${couponDoc.categoryFilter} kategorisinde geçerli`);
     }
     if (couponDoc.minAmount && basePrice < couponDoc.minAmount) {
-      throw new Error(`Bu kupon minimum ${couponDoc.minAmount} İnvite tutarda geçerli`);
+      throw new Error(`Bu kupon minimum ${couponDoc.minAmount} ${currency} tutarda geçerli`);
     }
 
     if (couponDoc.discountType === 'fixed') {
@@ -76,7 +77,11 @@ function calculateFinalPrice(basePrice, sysCfg, couponDoc = null, category = 'al
     price = Math.max(0, Number((price - couponDiscount).toFixed(2)));
   }
 
-  return { basePrice, flashDiscount, couponDiscount, finalPrice: Number(price.toFixed(2)) };
+  const taxPct = Math.max(0, Math.min(50, Number(sysCfg?.taxRatePct || 0)));
+  const taxAmount = taxPct > 0 ? Number(((price * taxPct) / 100).toFixed(2)) : 0;
+  const finalPrice = Number((price + taxAmount).toFixed(2));
+
+  return { basePrice, flashDiscount, couponDiscount, taxAmount, taxRatePct: taxPct, finalPrice };
 }
 
 router.post('/validate-coupon', requireAuth, couponLimiter, async (req, res) => {
@@ -133,6 +138,10 @@ router.post('/purchase', requireAuth, billingMutationLimiter, async (req, res) =
     }
 
     const sysCfg = await getSystemConfig();
+    if (sysCfg.requireVerifiedEmailForPurchase && !req.user.emailVerified && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Sunucu kurabilmek için önce e-posta adresinizi doğrulamanız gerekmektedir.' });
+    }
+    const currency = sysCfg.currencyLabel || 'İnvite';
     const pkgRef = db.collection('packages').doc(packageId);
     const pkgSnap = await pkgRef.get();
     if (!pkgSnap.exists) return res.status(404).json({ error: 'Seçilen paket bulunamadı' });
@@ -187,7 +196,7 @@ router.post('/purchase', requireAuth, billingMutationLimiter, async (req, res) =
       const currentBalance = Number(userData.balance || 0);
       if (currentBalance < pricingSummary.finalPrice) {
         throw new Error(
-          `Yetersiz bakiye! Gerekli: ${pricingSummary.finalPrice} İnvite, Mevcut: ${currentBalance} İnvite. Bakiye davet promosyonu veya çekilişlerle kazanılabilir.`
+          `Yetersiz bakiye! Gerekli: ${pricingSummary.finalPrice} ${currency}, Mevcut: ${currentBalance} ${currency}.`
         );
       }
 
@@ -276,16 +285,18 @@ router.post('/purchase', requireAuth, billingMutationLimiter, async (req, res) =
       details: { packageId: pkg.id, billingCycle, finalPrice: pricingSummary.finalPrice, port: allocatedPort },
     });
 
-    sendDiscordWebhook({
-      title: 'Yeni Sunucu Kuruldu',
-      description: `**${req.user.email}** yeni bir **${pkg.name}** (${billingCycle}) sunucusu oluşturdu: **${cleanName}**`,
-      color: 0x10b981,
-      fields: [
-        { name: 'Kategori', value: pkg.category, inline: true },
-        { name: 'Ödenen Tutar', value: `${pricingSummary.finalPrice} İnvite`, inline: true },
-        { name: 'Port', value: String(allocatedPort), inline: true },
-      ],
-    });
+    if (sysCfg.notifyDiscordOnPurchase !== false) {
+      sendDiscordWebhook({
+        title: 'Yeni Sunucu Kuruldu',
+        description: `**${req.user.email}** yeni bir **${pkg.name}** (${billingCycle}) sunucusu oluşturdu: **${cleanName}**`,
+        color: 0x10b981,
+        fields: [
+          { name: 'Kategori', value: pkg.category, inline: true },
+          { name: 'Ödenen Tutar', value: `${pricingSummary.finalPrice} ${currency}`, inline: true },
+          { name: 'Port', value: String(allocatedPort), inline: true },
+        ],
+      });
+    }
 
     res.status(201).json({ ok: true, server: createdServer, pricing: pricingSummary });
   } catch (err) {
@@ -302,6 +313,10 @@ router.post('/renew/:serverId', requireAuth, billingMutationLimiter, async (req,
     let newExpiresAt = Date.now();
     let paidPrice = 0;
 
+    const sysCfg = await getSystemConfig();
+    const currency = sysCfg.currencyLabel || 'İnvite';
+    const taxPct = Math.max(0, Math.min(50, Number(sysCfg.taxRatePct || 0)));
+
     await db.runTransaction(async (tx) => {
       const uRef = db.collection('users').doc(req.user.uid);
       const [srvSnap, uSnap] = await Promise.all([tx.get(srvRef), tx.get(uRef)]);
@@ -315,12 +330,13 @@ router.post('/renew/:serverId', requireAuth, billingMutationLimiter, async (req,
 
       const pkgSnap = await tx.get(db.collection('packages').doc(srv.packageId));
       const pkg = pkgSnap.exists ? pkgSnap.data() : { priceMonthly: 100, priceWeekly: 35, priceDaily: 6 };
-      const { price, days } = getCycleDetails(pkg, billingCycle);
+      const { price: basePrice, days } = getCycleDetails(pkg, billingCycle);
+      const price = taxPct > 0 ? Number((basePrice * (1 + taxPct / 100)).toFixed(2)) : basePrice;
       paidPrice = price;
 
       const balance = Number(uSnap.data()?.balance || 0);
       if (balance < price) {
-        throw new Error(`Yetersiz bakiye! Yenileme için ${price} İnvite gerekiyor (Mevcut: ${balance} İnvite).`);
+        throw new Error(`Yetersiz bakiye! Yenileme için ${price} ${currency} gerekiyor (Mevcut: ${balance} ${currency}).`);
       }
       const baseTime = Math.max(Date.now(), Number(srv.expiresAt || Date.now()));
       newExpiresAt = baseTime + days * 24 * 60 * 60 * 1000;
@@ -429,11 +445,13 @@ router.post('/change-package/:serverId', requireAuth, billingMutationLimiter, as
         }
       }
 
+      const sysCfg = await getSystemConfig();
+      const currency = sysCfg.currencyLabel || 'İnvite';
       const uData = uSnap.data();
       const bal = Number(uData.balance || 0);
 
       if (netDelta > 0 && bal < netDelta) {
-        throw new Error(`Yükseltme için yetersiz bakiye! Gerekli fark: ${netDelta} İnvite (Mevcut: ${bal} İnvite)`);
+        throw new Error(`Yükseltme için yetersiz bakiye! Gerekli fark: ${netDelta} ${currency} (Mevcut: ${bal} ${currency})`);
       }
 
       nextBalance = Number((bal - netDelta).toFixed(2));

@@ -22,17 +22,23 @@ import {
 } from '../components/icons/EmoIcons';
 
 export function HomePage() {
-  const { bootstrap, firebaseUser } = useAuth();
+  const { bootstrap, firebaseUser, currencyLabel } = useAuth();
   const navigate = useNavigate();
+  const cfg = bootstrap?.config || {};
   const [cycle, setCycle] = useState('monthly');
   const [openFaq, setOpenFaq] = useState(0);
+
+  React.useEffect(() => {
+    if (cfg.defaultBillingCycle && ['daily', 'weekly', 'monthly'].includes(cfg.defaultBillingCycle)) {
+      setCycle(cfg.defaultBillingCycle);
+    }
+  }, [cfg.defaultBillingCycle]);
 
   const previewFaqs = FAQ_ITEMS.slice(0, 5);
   const faqSchema = useMemo(() => buildFaqJsonLd(FAQ_ITEMS), []);
 
   const stats = bootstrap?.stats || { totalUsers: 0, totalServers: 0, runningServers: 0, hostUptimeSec: 0 };
   const packages = bootstrap?.packages || [];
-  const cfg = bootstrap?.config || {};
   const featuredPackages = packages.filter((p) => p.featured).slice(0, 4);
 
   const products = [
@@ -107,7 +113,7 @@ export function HomePage() {
         >
           <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-zinc-900 border border-white/10 text-zinc-300 text-xs font-medium">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
-            <span>NVMe Gücü • Gerçek Süreç Motoru • Otomatik Domain</span>
+            <span>{cfg.heroBadgeText || 'NVMe Gücü • Gerçek Süreç Motoru • Otomatik Domain'}</span>
           </div>
 
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-black leading-[1.06] tracking-tight text-white">
@@ -157,23 +163,25 @@ export function HomePage() {
           </div>
 
           {/* Clean Live Stats Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-            {[
-              { label: 'Toplam Sunucu', value: stats.totalServers, color: 'text-white' },
-              { label: 'Aktif Çalışan', value: stats.runningServers, color: 'text-emerald-400' },
-              { label: 'Kayıtlı Üye', value: stats.totalUsers, color: 'text-amber-400' },
-              {
-                label: 'Node Uptime',
-                value: `${Math.floor((stats.hostUptimeSec || 0) / 3600)}sa`,
-                color: 'text-zinc-200',
-              },
-            ].map((s) => (
-              <div key={s.label} className="glass-panel rounded-2xl px-4 py-3">
-                <div className={`font-display text-2xl font-extrabold ${s.color}`}>{s.value}</div>
-                <div className="text-[11px] text-zinc-400 mt-0.5">{s.label}</div>
-              </div>
-            ))}
-          </div>
+          {cfg.showLiveStatsStrip !== false && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+              {[
+                { label: 'Toplam Sunucu', value: stats.totalServers, color: 'text-white' },
+                { label: 'Aktif Çalışan', value: stats.runningServers, color: 'text-emerald-400' },
+                { label: 'Kayıtlı Üye', value: stats.totalUsers, color: 'text-amber-400' },
+                {
+                  label: 'Node Uptime',
+                  value: `${Math.floor((stats.hostUptimeSec || 0) / 3600)}sa`,
+                  color: 'text-zinc-200',
+                },
+              ].map((s) => (
+                <div key={s.label} className="glass-panel rounded-2xl px-4 py-3">
+                  <div className={`font-display text-2xl font-extrabold ${s.color}`}>{s.value}</div>
+                  <div className="text-[11px] text-zinc-400 mt-0.5">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         {/* Right Architectural Visual */}
@@ -333,7 +341,7 @@ export function HomePage() {
                   </div>
                   <h3 className="font-display text-lg font-bold text-white">{pkg.name}</h3>
                   <div className="flex items-baseline gap-1">
-                    <span className="font-display text-3xl font-black text-white">{getPrice(pkg)} İnvite</span>
+                    <span className="font-display text-3xl font-black text-white">{getPrice(pkg)} {currencyLabel}</span>
                     <span className="text-xs text-zinc-400">
                       / {cycle === 'daily' ? 'gün' : cycle === 'weekly' ? 'hafta' : 'ay'}
                     </span>
@@ -374,7 +382,7 @@ export function HomePage() {
             Ücretsiz Bakiye ve Haftalık İndirim Fırsatları
           </h2>
           <p className="text-sm text-zinc-300 leading-relaxed max-w-2xl">
-            Davet kodunla gelen her arkadaşın için <strong className="text-emerald-400">{cfg.inviteRewardInviter || 25} İnvite</strong>, arkadaşın ise <strong className="text-amber-300">{cfg.inviteRewardInvited || 15} İnvite</strong> bakiye kazanır. Ayrıca her hafta Fırsatlar menüsünden 3 gizemli Gece Pazarı kutusu açabilir ve Çekilişlere katılabilirsin.
+            Davet kodunla gelen her arkadaşın için <strong className="text-emerald-400">{cfg.inviteRewardInviter || 25} {currencyLabel}</strong>, arkadaşın ise <strong className="text-amber-300">{cfg.inviteRewardInvited || 15} {currencyLabel}</strong> bakiye kazanır. Ayrıca her hafta Fırsatlar menüsünden 3 gizemli Gece Pazarı kutusu açabilir ve Çekilişlere katılabilirsin.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row lg:flex-col gap-3">

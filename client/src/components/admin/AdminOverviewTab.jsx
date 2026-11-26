@@ -1,8 +1,10 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { useAuth } from '../../context/AuthContext';
 import { CpuChipIcon, RamStickIcon, DiskDriveIcon, ShieldAdminIcon } from '../icons/EmoIcons';
 
 export function AdminOverviewTab({ overview }) {
+  const { currencyLabel } = useAuth();
   const telemetry = overview?.telemetry || {};
   const host = telemetry.host || {};
   const totals = telemetry.totals || {};
@@ -53,7 +55,7 @@ export function AdminOverviewTab({ overview }) {
             {summary.totalUsers || 0} Üye <span className="text-sm text-rose-400">({summary.bannedUsers || 0} Ban)</span>
           </div>
           <div className="text-[11px] text-zinc-500 mt-1">
-            Cüzdan Toplamı: {summary.totalUserBalance || 0} İnvite • Açık Talep: {summary.openTickets || 0}
+            Cüzdan Toplamı: {summary.totalUserBalance || 0} {currencyLabel} • Açık Talep: {summary.openTickets || 0}
           </div>
         </div>
       </div>
@@ -97,7 +99,7 @@ export function AdminOverviewTab({ overview }) {
             <h3 className="font-display text-lg font-bold text-white">Gerçek Zamanlı CPU &amp; Sunucu Yük Grafiği</h3>
             <p className="text-xs text-zinc-400">Her 3 saniyede bir gerçek OS ve PID verisinden güncellenir</p>
           </div>
-          <span className="text-xs font-mono text-amber-300">Ciro: {summary.totalPlatformRevenue || 0} İnvite • Yetkili: {summary.adminCount || 1}</span>
+          <span className="text-xs font-mono text-amber-300">Ciro: {summary.totalPlatformRevenue || 0} {currencyLabel} • Yetkili: {summary.adminCount || 1}</span>
         </div>
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">

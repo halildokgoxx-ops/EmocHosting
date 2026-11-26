@@ -8,7 +8,7 @@ import { AnimatedButton } from '../components/ui/AnimatedButton';
 import { GiftInviteIcon, TrophyIcon, WalletCoinIcon } from '../components/icons/EmoIcons';
 
 export function LeaderboardInvitePage() {
-  const { user, profileData, bootstrap, firebaseUser, refreshProfile, refreshBootstrap } = useAuth();
+  const { user, profileData, bootstrap, firebaseUser, refreshProfile, refreshBootstrap, currencyLabel } = useAuth();
   const toast = useToast();
   const [boardTab, setBoardTab] = useState('invites');
   const [claimCode, setClaimCode] = useState('');
@@ -56,7 +56,7 @@ export function LeaderboardInvitePage() {
             <div>
               <h1 className="font-display text-2xl sm:text-3xl font-black text-white">Davet Promosyonu</h1>
               <p className="text-xs text-zinc-400">
-                Her başarılı davette sen +{cfg.inviteRewardInviter || 25} İnvite, arkadaşın +{cfg.inviteRewardInvited || 15} İnvite kazanır!
+                Her başarılı davette sen +{cfg.inviteRewardInviter || 25} {currencyLabel}, arkadaşın +{cfg.inviteRewardInvited || 15} {currencyLabel} kazanır!
               </p>
             </div>
           </div>
@@ -98,7 +98,7 @@ export function LeaderboardInvitePage() {
                   <div className="text-[11px] text-zinc-400">Davet Sayısı</div>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-[#09090b] border border-white/[0.06]">
-                  <div className="font-display text-2xl font-extrabold text-emerald-400">{user.referralEarnings || 0} İnvite</div>
+                  <div className="font-display text-2xl font-extrabold text-emerald-400">{user.referralEarnings || 0} {currencyLabel}</div>
                   <div className="text-[11px] text-zinc-400">Davet Kazancı</div>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-[#09090b] border border-white/[0.06]">
@@ -141,11 +141,11 @@ export function LeaderboardInvitePage() {
               <h3 className="font-display text-xl font-bold text-white">Cüzdan &amp; Hareketler</h3>
             </div>
             <span className="text-lg font-black text-emerald-400 font-mono tabular-nums">
-              {Number(user?.balance || 0).toFixed(2)} İnvite
+              {Number(user?.balance || 0).toFixed(2)} {currencyLabel}
             </span>
           </div>
           <p className="text-xs text-zinc-400">
-            İnvite bakiyeniz davet promosyonları, çekilişler ve platform etkinlikleriyle hesabınıza eklenir.
+            {currencyLabel} bakiyeniz davet promosyonları, çekilişler ve platform etkinlikleriyle hesabınıza eklenir.
           </p>
           <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
             {(profileData?.transactions || []).length === 0 ? (
@@ -158,7 +158,7 @@ export function LeaderboardInvitePage() {
                     <div className="text-[10px] font-mono text-zinc-500">{new Date(tx.createdAt).toLocaleString('tr-TR')}</div>
                   </div>
                   <span className={`font-mono font-bold shrink-0 ${tx.amount >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {tx.amount >= 0 ? `+${tx.amount}` : tx.amount} İnvite
+                    {tx.amount >= 0 ? `+${tx.amount}` : tx.amount} {currencyLabel}
                   </span>
                 </div>
               ))

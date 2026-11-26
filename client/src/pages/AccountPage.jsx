@@ -33,7 +33,7 @@ const PRESET_AVATARS = [
 ];
 
 export function AccountPage() {
-  const { firebaseUser, user, profileData, refreshProfile, logout, isAdmin } = useAuth();
+  const { firebaseUser, user, profileData, refreshProfile, logout, isAdmin, currencyLabel } = useAuth();
   const toast = useToast();
 
   const [tab, setTab] = useState('profile');
@@ -310,7 +310,7 @@ export function AccountPage() {
               <div className="flex flex-wrap items-center gap-3 mt-2 text-xs tabular-nums">
                 <span className="inline-flex items-center gap-1.5 text-emerald-400 font-semibold">
                   <WalletCoinIcon className="w-3.5 h-3.5" />
-                  {Number(user?.balance || 0).toFixed(2)} İnvite
+                  {Number(user?.balance || 0).toFixed(2)} {currencyLabel}
                 </span>
                 <span className="inline-flex items-center gap-1.5 text-zinc-300">
                   <TrophyIcon className="w-3.5 h-3.5 text-amber-400" />
@@ -471,7 +471,7 @@ export function AccountPage() {
               <div className="grid grid-cols-2 gap-3 text-xs tabular-nums">
                 <div className="p-3.5 rounded-xl bg-[#09090b] border border-white/[0.06]">
                   <div className="text-zinc-500">Toplam Harcama</div>
-                  <div className="font-display text-lg font-black text-white mt-0.5">{Number(user?.totalSpent || 0).toFixed(2)} İnvite</div>
+                  <div className="font-display text-lg font-black text-white mt-0.5">{Number(user?.totalSpent || 0).toFixed(2)} {currencyLabel}</div>
                 </div>
                 <div className="p-3.5 rounded-xl bg-[#09090b] border border-white/[0.06]">
                   <div className="text-zinc-500">Başarılı Davet</div>
@@ -485,7 +485,7 @@ export function AccountPage() {
                 </div>
                 <div className="p-3.5 rounded-xl bg-[#09090b] border border-white/[0.06]">
                   <div className="text-zinc-500">Davet Kazancı</div>
-                  <div className="font-display text-lg font-black text-amber-300 mt-0.5">{user?.referralEarnings || 0} İnvite</div>
+                  <div className="font-display text-lg font-black text-amber-300 mt-0.5">{user?.referralEarnings || 0} {currencyLabel}</div>
                 </div>
               </div>
             </div>
@@ -822,7 +822,7 @@ export function AccountPage() {
               <div className="flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold text-white">Cüzdan &amp; İşlem Geçmişi</h2>
                 <span className="font-mono text-sm font-bold text-emerald-400">
-                  Bakiye: {Number(user?.balance || 0).toFixed(2)} İnvite
+                  Bakiye: {Number(user?.balance || 0).toFixed(2)} {currencyLabel}
                 </span>
               </div>
               {transactions.length === 0 ? (
@@ -838,7 +838,7 @@ export function AccountPage() {
                         </div>
                       </div>
                       <span className={`font-mono font-bold shrink-0 ${tx.amount >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {tx.amount >= 0 ? `+${tx.amount}` : tx.amount} İnvite
+                        {tx.amount >= 0 ? `+${tx.amount}` : tx.amount} {currencyLabel}
                       </span>
                     </div>
                   ))}

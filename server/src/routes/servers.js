@@ -436,7 +436,12 @@ router.post('/:id/collaborators', requireAuth, loadOwnedServer, async (req, res)
 
     const target = uSnap.docs[0];
     const targetData = target.data();
+    const sysCfg = await getSystemConfig();
+    const maxCollabs = Number(sysCfg?.maxCollaboratorsPerServer ?? 10);
     const current = (req.serverDoc.collaborators || []).filter((c) => c.uid !== target.id);
+    if (!req.user.isAdmin && current.length >= maxCollabs) {
+      return res.status(400).json({ error: `Sunucu başına maksimum ${maxCollabs} ortak eklenebilir.` });
+    }
     current.push({
       uid: target.id,
       email: targetData.email,
@@ -1458,6 +1463,10 @@ router.post('/:id/infra/config', requireAuth, loadOwnedServer, requirePerm('sett
 // ================= DOMAIN SUBDOMAIN ROUTING =================
 router.patch('/:id/subdomain', requireAuth, loadOwnedServer, requirePerm('settings'), async (req, res) => {
   try {
+    const sysCfg = await getSystemConfig();
+    if (sysCfg?.allowSubdomainEdit === false && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Alt alan adı düzenleme şu anda yönetici tarafından kapatılmıştır.' });
+    }
     const clean = String(req.body.subdomain || '')
       .toLowerCase()
       .trim()

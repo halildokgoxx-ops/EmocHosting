@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedButton } from './AnimatedButton';
 import { BellIcon, ShieldAdminIcon } from '../icons/EmoIcons';
 import { getCookieConsentState, saveCookieConsent } from '../../lib/analytics';
 
 export function CookieNotificationBanner() {
+  const { bootstrap } = useAuth();
   const toast = useToast();
+  const cookieEnabled = bootstrap?.config?.cookieBannerEnabled !== false;
   const [cookieDone, setCookieDone] = useState(true);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
@@ -89,6 +92,8 @@ export function CookieNotificationBanner() {
     localStorage.setItem('emoc_push_dismissed', '1');
     setPushPromptOpen(false);
   }
+
+  if (!cookieEnabled) return null;
 
   return (
     <>

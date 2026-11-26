@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../services/firebase.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, getSystemConfig } from '../middleware/auth.js';
 import { sendDiscordWebhook } from '../services/webhook.js';
 import { assertSafeDocId, sanitizeString } from '../utils/security.js';
 import { createRateLimiter } from '../middleware/rateLimit.js';
@@ -97,15 +97,18 @@ router.post('/', requireAuth, createTicketLimiter, async (req, res) => {
       createdAt: now,
     });
 
-    sendDiscordWebhook({
-      title: 'Yeni Destek Talebi Açıldı',
-      description: `**${req.user.email}** yeni bir talep oluşturdu: **${rawSubject}**`,
-      color: 0x00f0ff,
-      fields: [
-        { name: 'Kategori', value: category, inline: true },
-        { name: 'Öncelik', value: priority, inline: true },
-      ],
-    });
+    const sysCfg = await getSystemConfig();
+    if (sysCfg.notifyDiscordOnTicket !== false) {
+      sendDiscordWebhook({
+        title: 'Yeni Destek Talebi Açıldı',
+        description: `**${req.user.email}** yeni bir talep oluşturdu: **${rawSubject}**`,
+        color: 0x00f0ff,
+        fields: [
+          { name: 'Kategori', value: category, inline: true },
+          { name: 'Öncelik', value: priority, inline: true },
+        ],
+      });
+    }
 
     res.status(201).json({ ok: true, id: ticketRef.id });
   } catch (err) {

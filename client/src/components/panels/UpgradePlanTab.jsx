@@ -5,7 +5,7 @@ import { apiRequest } from '../../lib/api';
 import { AnimatedButton } from '../ui/AnimatedButton';
 
 export function UpgradePlanTab({ server, onReload }) {
-  const { bootstrap, user, refreshProfile } = useAuth();
+  const { bootstrap, user, refreshProfile, currencyLabel } = useAuth();
   const toast = useToast();
   const [busyId, setBusyId] = useState('');
 
@@ -23,8 +23,8 @@ export function UpgradePlanTab({ server, onReload }) {
       });
       toast.success(
         res.netDelta >= 0
-          ? `Paket yükseltildi! Fark: ${res.netDelta} İnvite düşüldü.`
-          : `Paket düşürüldü! ${Math.abs(res.netDelta)} İnvite iade edildi.`
+          ? `Paket yükseltildi! Fark: ${res.netDelta} ${currencyLabel} düşüldü.`
+          : `Paket düşürüldü! ${Math.abs(res.netDelta)} ${currencyLabel} iade edildi.`
       );
       await Promise.all([refreshProfile(), onReload?.()]);
     } catch (err) {
@@ -44,7 +44,7 @@ export function UpgradePlanTab({ server, onReload }) {
           </p>
         </div>
         <div className="text-xs font-mono text-zinc-300 bg-[#09090b] px-3 py-1.5 rounded-xl border border-white/[0.08]">
-          Bakiye: <strong className="text-amber-400">{Number(user?.balance || 0).toFixed(2)} İnvite</strong>
+          Bakiye: <strong className="text-amber-400">{Number(user?.balance || 0).toFixed(2)} {currencyLabel}</strong>
         </div>
       </div>
 
@@ -67,7 +67,7 @@ export function UpgradePlanTab({ server, onReload }) {
                   )}
                 </div>
                 <div className="font-display text-2xl font-black text-white">
-                  {pkg.priceMonthly} İnvite <span className="text-xs text-zinc-400 font-normal">/ ay</span>
+                  {pkg.priceMonthly} {currencyLabel} <span className="text-xs text-zinc-400 font-normal">/ ay</span>
                 </div>
                 <ul className="text-xs text-zinc-400 space-y-1 pt-2 border-t border-white/[0.06]">
                   <li>• {pkg.ramMb} MB RAM</li>

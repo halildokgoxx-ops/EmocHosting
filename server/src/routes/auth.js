@@ -286,6 +286,10 @@ router.post('/api-keys', requireAuth, apiKeyLimiter, async (req, res) => {
     return res.status(403).json({ error: 'API anahtarı oluşturmak için etkileşimli oturum gereklidir' });
   }
   try {
+    const sysCfg = await getSystemConfig();
+    if (sysCfg.allowUserApiKeys === false && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Kişisel API anahtarı oluşturma yönetici tarafından devre dışı bırakılmıştır.' });
+    }
     const label = sanitizeString(req.body?.label, { minLen: 1, maxLen: 50 }) || 'API Anahtarı';
     const existingSnap = await db.collection('api_keys').where('uid', '==', req.user.uid).get();
     const activeCount = existingSnap.docs.filter((d) => !d.data().revoked).length;

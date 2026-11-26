@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest, downloadAuthenticatedFile } from '../../lib/api';
 import { ADMIN_API_PREFIX } from '../../lib/adminConfig';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedButton } from '../ui/AnimatedButton';
 import { TrashIcon } from '../icons/EmoIcons';
 
 export function AdminSystemToolsTab({ onRefresh }) {
   const toast = useToast();
+  const { currencyLabel } = useAuth();
   const [subTab, setSubTab] = useState('diagnostics');
 
   const [diag, setDiag] = useState(null);
@@ -401,7 +403,7 @@ export function AdminSystemToolsTab({ onRefresh }) {
               <div key={tx.id} className="p-2.5 rounded-xl bg-white/5 flex justify-between font-mono">
                 <span>{tx.email} — {tx.note} ({tx.adminEmail})</span>
                 <span className={tx.amount >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
-                  {tx.amount >= 0 ? `+${tx.amount}` : tx.amount} İnvite
+                  {tx.amount >= 0 ? `+${tx.amount}` : tx.amount} {currencyLabel}
                 </span>
               </div>
             ))}

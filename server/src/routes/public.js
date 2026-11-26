@@ -10,9 +10,14 @@ function getPreviewFallbackPayload() {
   return {
     config: {
       siteName: 'EmoçHosting',
+      currencyLabel: 'İnvite',
+      defaultBillingCycle: 'monthly',
+      taxRatePct: 0,
       registrationOpen: true,
       maintenanceMode: false,
       nightMarketEnabled: true,
+      showLiveStatsStrip: true,
+      cookieBannerEnabled: true,
       inviteRewardInviter: 25,
       inviteRewardInvited: 15,
       tosText: DEFAULT_TOS_TEXT,
@@ -63,7 +68,7 @@ async function loadBootstrapFromDb() {
   const rawCfg = cfgSnap.exists ? cfgSnap.data() : {};
   const publicConfig = {};
   for (const [k, v] of Object.entries(rawCfg)) {
-    if (/secret|token|password|apikey|api_key|webhook|privatekey/i.test(k)) continue;
+    if (k !== 'allowUserApiKeys' && /secret|token|password|apikey|api_key|webhook|privatekey/i.test(k)) continue;
     publicConfig[k] = v;
   }
 

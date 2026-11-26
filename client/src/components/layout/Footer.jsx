@@ -96,7 +96,7 @@ export function Footer() {
       </div>
 
       <div className="border-t border-white/[0.06] py-4 px-4 text-center text-xs text-zinc-400">
-        © {new Date().getFullYear()} EmoçHosting — Tüm hakları saklıdır.
+        {cfg.footerNote || `© ${new Date().getFullYear()} ${cfg.siteName || 'EmoçHosting'} — Tüm hakları saklıdır.`}
       </div>
     </footer>
   );

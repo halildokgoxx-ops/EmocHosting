@@ -532,6 +532,22 @@ export async function seedInitialDataIfNeeded() {
         nightMarketEnabled: true,
         nightMarketCooldownDays: 7,
         nightMarketBoxCount: 3,
+        currencyLabel: 'İnvite',
+        defaultBillingCycle: 'monthly',
+        taxRatePct: 0,
+        renewalGraceHours: 0,
+        allowSubdomainEdit: true,
+        allowUserApiKeys: true,
+        requireVerifiedEmailForPurchase: false,
+        maxCollaboratorsPerServer: 10,
+        showLiveStatsStrip: true,
+        cookieBannerEnabled: true,
+        notifyDiscordOnPurchase: true,
+        notifyDiscordOnTicket: true,
+        welcomeNotificationEnabled: true,
+        welcomeNotificationMessage: '',
+        heroBadgeText: '',
+        footerNote: '',
         maxServersPerUser: 10,
         maxUploadMb: 100,
         autoSuspendExpired: true,
@@ -577,6 +593,19 @@ export async function seedInitialDataIfNeeded() {
       if (existing.nightMarketEnabled === undefined) upgrades.nightMarketEnabled = true;
       if (existing.nightMarketCooldownDays === undefined) upgrades.nightMarketCooldownDays = 7;
       if (existing.nightMarketBoxCount === undefined) upgrades.nightMarketBoxCount = 3;
+      if (existing.currencyLabel === undefined) upgrades.currencyLabel = 'İnvite';
+      if (existing.defaultBillingCycle === undefined) upgrades.defaultBillingCycle = 'monthly';
+      if (existing.taxRatePct === undefined) upgrades.taxRatePct = 0;
+      if (existing.renewalGraceHours === undefined) upgrades.renewalGraceHours = 0;
+      if (existing.allowSubdomainEdit === undefined) upgrades.allowSubdomainEdit = true;
+      if (existing.allowUserApiKeys === undefined) upgrades.allowUserApiKeys = true;
+      if (existing.requireVerifiedEmailForPurchase === undefined) upgrades.requireVerifiedEmailForPurchase = false;
+      if (existing.maxCollaboratorsPerServer === undefined) upgrades.maxCollaboratorsPerServer = 10;
+      if (existing.showLiveStatsStrip === undefined) upgrades.showLiveStatsStrip = true;
+      if (existing.cookieBannerEnabled === undefined) upgrades.cookieBannerEnabled = true;
+      if (existing.notifyDiscordOnPurchase === undefined) upgrades.notifyDiscordOnPurchase = true;
+      if (existing.notifyDiscordOnTicket === undefined) upgrades.notifyDiscordOnTicket = true;
+      if (existing.welcomeNotificationEnabled === undefined) upgrades.welcomeNotificationEnabled = true;
       if (Object.keys(upgrades).length > 0) {
         await configRef.update({ ...upgrades, updatedAt: Date.now() });
       }

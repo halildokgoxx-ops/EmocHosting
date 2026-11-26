@@ -130,6 +130,7 @@ export function AuthProvider({ children }) {
   const user = profile?.user || null;
   const isAdmin = Boolean(user?.isAdmin);
   const isOwner = Boolean(user?.isOwner);
+  const currencyLabel = bootstrap?.config?.currencyLabel || 'İnvite';
 
   return (
     <AuthContext.Provider
@@ -138,6 +139,7 @@ export function AuthProvider({ children }) {
         user,
         profileData: profile,
         bootstrap,
+        currencyLabel,
         loading,
         authError,
         isAdmin,

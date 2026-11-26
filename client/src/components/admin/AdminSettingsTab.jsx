@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../lib/api';
 import { ADMIN_API_PREFIX } from '../../lib/adminConfig';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedButton } from '../ui/AnimatedButton';
-import { SettingsGearIcon, MegaphoneIcon, ShieldAdminIcon, TrashIcon, PlusIcon } from '../icons/EmoIcons';
+import { SettingsGearIcon, MegaphoneIcon, ShieldAdminIcon, WalletCoinIcon, TrashIcon, PlusIcon } from '../icons/EmoIcons';
 
 export function AdminSettingsTab({ config = {}, isOwner, onRefresh }) {
   const toast = useToast();
+  const { currencyLabel } = useAuth();
   const [cfg, setCfg] = useState(config || {});
-  const [section, setSection] = useState('general');
+  const [section, setSection] = useState('pricing');
   const [saving, setSaving] = useState(false);
 
   const [announcements, setAnnouncements] = useState([]);
@@ -24,11 +26,13 @@ export function AdminSettingsTab({ config = {}, isOwner, onRefresh }) {
     }
   }, [section]);
 
+  const activeCurrency = cfg.currencyLabel !== undefined ? cfg.currencyLabel : currencyLabel;
+
   async function saveConfig() {
     setSaving(true);
     try {
       await apiRequest(`${ADMIN_API_PREFIX}/config`, { method: 'PATCH', body: cfg });
-      toast.success('Platform ayarları kaydedildi ve yayınlandı!');
+      toast.success('Platform ayarları kaydedildi ve anında yayınlandı!');
       onRefresh();
     } catch (err) {
       toast.error(err.message);
@@ -73,9 +77,10 @@ export function AdminSettingsTab({ config = {}, isOwner, onRefresh }) {
   }
 
   const tabs = [
-    { id: 'general', label: 'Genel, Bakım & Duyurular' },
-    { id: 'security', label: 'Kayıt, Güvenlik & Yasal Metin' },
-    { id: 'quotas', label: 'Kotalar, Watchdog & API' },
+    { id: 'pricing', label: 'Fiyatlandırma & Para Birimi' },
+    { id: 'general', label: 'Genel, Görünüm & Duyurular' },
+    { id: 'security', label: 'Kayıt, İzinler & Yasal Metin' },
+    { id: 'quotas', label: 'Kotalar, Watchdog & Bildirim' },
     { id: 'seo', label: 'SEO & OpenGraph' },
   ];
 
@@ -100,6 +105,155 @@ export function AdminSettingsTab({ config = {}, isOwner, onRefresh }) {
           <SettingsGearIcon className="w-4 h-4" /> Ayarları Kaydet
         </AnimatedButton>
       </div>
+
+      {section === 'pricing' && (
+        <div className="glass-panel rounded-3xl p-6 space-y-5">
+          <div className="flex items-center gap-2.5">
+            <WalletCoinIcon className="w-5 h-5 text-amber-400" />
+            <div>
+              <h4 className="font-display text-lg font-bold text-white">Fiyatlandırma &amp; Bakiye Birimi Ayarları</h4>
+              <p className="text-zinc-400">Platformdaki tüm paket fiyatlarında, cüzdanda ve kuponlarda kullanılacak para/kredi birimini serbestçe belirleyin.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="sm:col-span-2">
+              <label className="text-zinc-300 font-semibold block mb-1">
+                Para / Bakiye Birimi Adı (Serbest Yazı)
+              </label>
+              <input
+                value={cfg.currencyLabel ?? 'İnvite'}
+                onChange={(e) => setCfg({ ...cfg, currencyLabel: e.target.value })}
+                placeholder="Örn: İnvite, TL, Kredi, ₺, Puan"
+                maxLength={24}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-amber-500/35 focus:border-amber-400 outline-none text-amber-200 font-bold"
+              />
+              <p className="text-[11px] text-zinc-500 mt-1">
+                Sabit seçenek yoktur — ne yazarsanız mağaza, cüzdan ve admin panelinde tüm birimler otomatik güncellenir (Örn: TL, Kredi, İnvite).
+              </p>
+            </div>
+
+            <div>
+              <label className="text-zinc-400 block mb-1">Varsayılan Faturalandırma Periyodu</label>
+              <select
+                value={cfg.defaultBillingCycle || 'monthly'}
+                onChange={(e) => setCfg({ ...cfg, defaultBillingCycle: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-xl bg-zinc-950 border border-white/15 text-white"
+              >
+                <option value="daily">Günlük</option>
+                <option value="weekly">Haftalık</option>
+                <option value="monthly">Aylık</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-zinc-400 block mb-1">Vergi / İşlem Payı (% 0–50)</label>
+              <input
+                type="number"
+                min={0}
+                max={50}
+                step="0.5"
+                value={cfg.taxRatePct ?? 0}
+                onChange={(e) => setCfg({ ...cfg, taxRatePct: Number(e.target.value) })}
+                className="w-full px-3 py-2.5 rounded-xl bg-zinc-950 border border-white/15 text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-zinc-400 block mb-1">Yeni Üye Başlangıç Bakiyesi ({activeCurrency})</label>
+              <input
+                type="number"
+                min={0}
+                value={cfg.defaultStartingBalance ?? 0}
+                onChange={(e) => setCfg({ ...cfg, defaultStartingBalance: Number(e.target.value) })}
+                className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-zinc-400 block mb-1">Davet Eden Ödülü ({activeCurrency})</label>
+              <input
+                type="number"
+                min={0}
+                value={cfg.inviteRewardInviter ?? 25}
+                onChange={(e) => setCfg({ ...cfg, inviteRewardInviter: Number(e.target.value) })}
+                className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-zinc-400 block mb-1">Davet Edilen Bonusu ({activeCurrency})</label>
+              <input
+                type="number"
+                min={0}
+                value={cfg.inviteRewardInvited ?? 15}
+                onChange={(e) => setCfg({ ...cfg, inviteRewardInvited: Number(e.target.value) })}
+                className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-zinc-400 block mb-1">Süre Dolumu Tolerans Süresi (Saat)</label>
+              <input
+                type="number"
+                min={0}
+                max={168}
+                value={cfg.renewalGraceHours ?? 0}
+                onChange={(e) => setCfg({ ...cfg, renewalGraceHours: Number(e.target.value) })}
+                className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-zinc-400 block mb-1">Site Geneli Flash İndirim (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={90}
+                value={cfg.flashSalePercent ?? 0}
+                onChange={(e) => setCfg({ ...cfg, flashSalePercent: Number(e.target.value) })}
+                className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-zinc-400 block mb-1">Gece Pazarı Kutu Sayısı (1–6)</label>
+              <input
+                type="number"
+                min={1}
+                max={6}
+                value={cfg.nightMarketBoxCount ?? 3}
+                onChange={(e) => setCfg({ ...cfg, nightMarketBoxCount: Number(e.target.value) })}
+                className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-zinc-400 block mb-1">Gece Pazarı Yenilenme (Gün)</label>
+              <input
+                type="number"
+                min={1}
+                max={90}
+                value={cfg.nightMarketCooldownDays ?? 7}
+                onChange={(e) => setCfg({ ...cfg, nightMarketCooldownDays: Number(e.target.value) })}
+                className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white"
+              />
+            </div>
+
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 p-2.5 rounded-xl bg-white/5 border border-white/10 w-full cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cfg.invitePromoActive !== false}
+                  onChange={(e) => setCfg({ ...cfg, invitePromoActive: e.target.checked })}
+                  className="accent-amber-500"
+                />
+                <span>Davet Promosyonu Aktif</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
 
       {section === 'general' && (
         <div className="space-y-6">
@@ -132,6 +286,25 @@ export function AdminSettingsTab({ config = {}, isOwner, onRefresh }) {
                 <label className="text-zinc-400 block mb-1">Bakım Modu Açıklaması</label>
                 <input value={cfg.maintenanceMessage || ''} onChange={(e) => setCfg({ ...cfg, maintenanceMessage: e.target.value })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
               </div>
+              <div>
+                <label className="text-zinc-400 block mb-1">Ana Sayfa Üst Rozet Metni</label>
+                <input value={cfg.heroBadgeText || ''} onChange={(e) => setCfg({ ...cfg, heroBadgeText: e.target.value })} placeholder="NVMe Gücü • Gerçek Süreç Motoru • Otomatik Domain" className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+              </div>
+              <div>
+                <label className="text-zinc-400 block mb-1">Alt Bilgi (Footer) Telif Notu</label>
+                <input value={cfg.footerNote || ''} onChange={(e) => setCfg({ ...cfg, footerNote: e.target.value })} placeholder="Varsayılan: © 2026 EmoçHosting — Tüm hakları saklıdır." className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer">
+                <input type="checkbox" checked={cfg.showLiveStatsStrip !== false} onChange={(e) => setCfg({ ...cfg, showLiveStatsStrip: e.target.checked })} className="accent-amber-500" />
+                <span>Ana Sayfa Canlı İstatistik Şeridini Göster</span>
+              </label>
+              <label className="flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer">
+                <input type="checkbox" checked={cfg.cookieBannerEnabled !== false} onChange={(e) => setCfg({ ...cfg, cookieBannerEnabled: e.target.checked })} className="accent-amber-500" />
+                <span>Çerez &amp; Bildirim Onay Çubuğunu Göster</span>
+              </label>
             </div>
 
             <div className="space-y-2 pt-2 border-t border-white/10">
@@ -146,12 +319,11 @@ export function AdminSettingsTab({ config = {}, isOwner, onRefresh }) {
             </div>
 
             <div>
-              <label className="text-zinc-400 block mb-1">Ana Sayfa Alt Başlık (Tagline)</label>
+              <label className="text-zinc-400 block mb-1">Ana Sayfa / Footer Alt Başlık (Tagline)</label>
               <input value={cfg.siteTagline || ''} onChange={(e) => setCfg({ ...cfg, siteTagline: e.target.value })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
             </div>
           </div>
 
-          {/* Real Announcements CRUD */}
           <div className="glass-panel rounded-3xl p-6 space-y-4">
             <div className="flex items-center gap-2">
               <MegaphoneIcon className="w-5 h-5 text-amber-400" />
@@ -187,30 +359,50 @@ export function AdminSettingsTab({ config = {}, isOwner, onRefresh }) {
         <div className="glass-panel rounded-3xl p-6 space-y-5">
           <div className="flex items-center gap-2">
             <ShieldAdminIcon className="w-5 h-5 text-rose-400" />
-            <h4 className="font-display text-lg font-bold text-white">Kayıt, Güvenlik &amp; Yasal Metinler</h4>
+            <h4 className="font-display text-lg font-bold text-white">Kayıt, Kullanıcı İzinleri &amp; Yasal Metinler</h4>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <label className="flex items-center gap-2 p-3.5 rounded-2xl bg-white/5 border border-white/10 cursor-pointer">
               <input type="checkbox" checked={cfg.registrationOpen !== false} onChange={(e) => setCfg({ ...cfg, registrationOpen: e.target.checked })} className="accent-amber-500" />
               <span>Yeni Kullanıcı Kayıtlarına Açık</span>
             </label>
+            <label className="flex items-center gap-2 p-3.5 rounded-2xl bg-white/5 border border-white/10 cursor-pointer">
+              <input type="checkbox" checked={cfg.allowSubdomainEdit !== false} onChange={(e) => setCfg({ ...cfg, allowSubdomainEdit: e.target.checked })} className="accent-amber-500" />
+              <span>Kullanıcı Alt Alan Adı Değiştirebilsin</span>
+            </label>
+            <label className="flex items-center gap-2 p-3.5 rounded-2xl bg-white/5 border border-white/10 cursor-pointer">
+              <input type="checkbox" checked={cfg.allowUserApiKeys !== false} onChange={(e) => setCfg({ ...cfg, allowUserApiKeys: e.target.checked })} className="accent-amber-500" />
+              <span>Kişisel API Anahtarı Oluşturma Açık</span>
+            </label>
+            <label className="flex items-center gap-2 p-3.5 rounded-2xl bg-white/5 border border-white/10 cursor-pointer">
+              <input type="checkbox" checked={Boolean(cfg.requireVerifiedEmailForPurchase)} onChange={(e) => setCfg({ ...cfg, requireVerifiedEmailForPurchase: e.target.checked })} className="accent-amber-500" />
+              <span>Satın Almada Doğrulanmış E-posta Zorunlu</span>
+            </label>
+            <label className="flex items-center gap-2 p-3.5 rounded-2xl bg-white/5 border border-white/10 cursor-pointer">
+              <input type="checkbox" checked={cfg.welcomeNotificationEnabled !== false} onChange={(e) => setCfg({ ...cfg, welcomeNotificationEnabled: e.target.checked })} className="accent-amber-500" />
+              <span>Yeni Üyelere Hoş Geldin Bildirimi</span>
+            </label>
             {isOwner && (
               <label className="flex items-center gap-2 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-400/25 text-rose-200 cursor-pointer">
                 <input type="checkbox" checked={Boolean(cfg.onlyOwnerAdminMode)} onChange={(e) => setCfg({ ...cfg, onlyOwnerAdminMode: e.target.checked })} className="accent-rose-500" />
-                <span>Sadece Kurucu Yönetici Admin Kilidi (Alt Adminleri Askıya Al)</span>
+                <span>Sadece Kurucu Yönetici Admin Kilidi</span>
               </label>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="text-zinc-400 block mb-1">Yeni Üye Başlangıç Bakiyesi (İnvite)</label>
-              <input type="number" min={0} value={cfg.defaultStartingBalance || 0} onChange={(e) => setCfg({ ...cfg, defaultStartingBalance: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+              <label className="text-zinc-400 block mb-1">Sunucu Başına Max Ortak Kullanıcı</label>
+              <input type="number" min={0} max={50} value={cfg.maxCollaboratorsPerServer ?? 10} onChange={(e) => setCfg({ ...cfg, maxCollaboratorsPerServer: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
             </div>
             <div>
               <label className="text-zinc-400 block mb-1">Global Maksimum RAM Havuzu (MB)</label>
-              <input type="number" min={512} value={cfg.globalMaxRamMb || 65536} onChange={(e) => setCfg({ ...cfg, globalMaxRamMb: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+              <input type="number" min={512} value={cfg.globalMaxRamMb ?? 65536} onChange={(e) => setCfg({ ...cfg, globalMaxRamMb: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+            </div>
+            <div>
+              <label className="text-zinc-400 block mb-1">Hoş Geldin Bildirim Mesajı</label>
+              <input value={cfg.welcomeNotificationMessage || ''} onChange={(e) => setCfg({ ...cfg, welcomeNotificationMessage: e.target.value })} placeholder="Hoş geldiniz! Fırsatlara göz atın..." className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
             </div>
           </div>
 
@@ -232,19 +424,19 @@ export function AdminSettingsTab({ config = {}, isOwner, onRefresh }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="text-zinc-400 block mb-1">Kullanıcı Başına Max Sunucu</label>
-              <input type="number" min={1} value={cfg.maxServersPerUser || 10} onChange={(e) => setCfg({ ...cfg, maxServersPerUser: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+              <input type="number" min={1} value={cfg.maxServersPerUser ?? 10} onChange={(e) => setCfg({ ...cfg, maxServersPerUser: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
             </div>
             <div>
               <label className="text-zinc-400 block mb-1">Max Dosya Yükleme (MB)</label>
-              <input type="number" min={1} value={cfg.maxUploadMb || 100} onChange={(e) => setCfg({ ...cfg, maxUploadMb: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+              <input type="number" min={1} value={cfg.maxUploadMb ?? 100} onChange={(e) => setCfg({ ...cfg, maxUploadMb: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
             </div>
             <div>
               <label className="text-zinc-400 block mb-1">CPU Alarm Eşiği (%)</label>
-              <input type="number" min={10} max={100} value={cfg.cpuAlertThresholdPct || 85} onChange={(e) => setCfg({ ...cfg, cpuAlertThresholdPct: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+              <input type="number" min={10} max={100} value={cfg.cpuAlertThresholdPct ?? 85} onChange={(e) => setCfg({ ...cfg, cpuAlertThresholdPct: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
             </div>
             <div>
               <label className="text-zinc-400 block mb-1">RAM Alarm Eşiği (%)</label>
-              <input type="number" min={10} max={100} value={cfg.ramAlertThresholdPct || 90} onChange={(e) => setCfg({ ...cfg, ramAlertThresholdPct: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
+              <input type="number" min={10} max={100} value={cfg.ramAlertThresholdPct ?? 90} onChange={(e) => setCfg({ ...cfg, ramAlertThresholdPct: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
             </div>
           </div>
 
@@ -256,6 +448,14 @@ export function AdminSettingsTab({ config = {}, isOwner, onRefresh }) {
             <label className="flex items-center gap-2 p-3 rounded-xl bg-white/5 cursor-pointer">
               <input type="checkbox" checked={cfg.autoRestartCrashed !== false} onChange={(e) => setCfg({ ...cfg, autoRestartCrashed: e.target.checked })} className="accent-amber-500" />
               <span>Çöken süreçleri otomatik kurtar (Global Watchdog)</span>
+            </label>
+            <label className="flex items-center gap-2 p-3 rounded-xl bg-white/5 cursor-pointer">
+              <input type="checkbox" checked={cfg.notifyDiscordOnPurchase !== false} onChange={(e) => setCfg({ ...cfg, notifyDiscordOnPurchase: e.target.checked })} className="accent-amber-500" />
+              <span>Yeni sunucu kurulumunda Discord Webhook gönder</span>
+            </label>
+            <label className="flex items-center gap-2 p-3 rounded-xl bg-white/5 cursor-pointer">
+              <input type="checkbox" checked={cfg.notifyDiscordOnTicket !== false} onChange={(e) => setCfg({ ...cfg, notifyDiscordOnTicket: e.target.checked })} className="accent-amber-500" />
+              <span>Yeni destek talebinde Discord Webhook gönder</span>
             </label>
           </div>
 

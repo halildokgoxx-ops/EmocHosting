@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../lib/api';
 import { ADMIN_API_PREFIX } from '../../lib/adminConfig';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedButton } from '../ui/AnimatedButton';
 import { TrophyIcon, TrashIcon, PlusIcon, GiftInviteIcon, PlayersGroupIcon } from '../icons/EmoIcons';
 
 export function AdminGiveawaysTab({ invites = [], users = [], leaderboard, config = {}, onRefresh }) {
   const toast = useToast();
+  const { currencyLabel } = useAuth();
   const [giveaways, setGiveaways] = useState([]);
   const [creating, setCreating] = useState(false);
   const [participantsMap, setParticipantsMap] = useState({});
@@ -127,7 +129,7 @@ export function AdminGiveawaysTab({ invites = [], users = [], leaderboard, confi
         method: 'POST',
         body: { uid, bonusBalance: Number(leaderBonusAmount || 50), badge: 'Liderlik Şampiyonu' },
       });
-      toast.success(`${displayName} +${leaderBonusAmount} İnvite ve Şampiyon rozeti ile ödüllendirildi!`);
+      toast.success(`${displayName} +${leaderBonusAmount} ${currencyLabel} ve Şampiyon rozeti ile ödüllendirildi!`);
       onRefresh();
     } catch (err) {
       toast.error(err.message);
@@ -182,7 +184,7 @@ export function AdminGiveawaysTab({ invites = [], users = [], leaderboard, confi
           <div>
             <label className="text-[10px] text-zinc-400 block mb-1">Ödül Tipi</label>
             <select value={newGiveaway.prizeType} onChange={(e) => setNewGiveaway({ ...newGiveaway, prizeType: e.target.value })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white">
-              <option value="balance">Bakiye (İnvite)</option>
+              <option value="balance">Bakiye ({currencyLabel})</option>
               <option value="coupon">İndirim Kuponu (%)</option>
             </select>
           </div>
@@ -313,11 +315,11 @@ export function AdminGiveawaysTab({ invites = [], users = [], leaderboard, confi
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-zinc-400 block mb-1">Davet Eden Ödülü (İnvite)</label>
+              <label className="text-zinc-400 block mb-1">Davet Eden Ödülü ({currencyLabel})</label>
               <input type="number" min={0} value={inviteCfg.inviteRewardInviter} onChange={(e) => setInviteCfg({ ...inviteCfg, inviteRewardInviter: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
             </div>
             <div>
-              <label className="text-zinc-400 block mb-1">Davet Edilen Bonusu (İnvite)</label>
+              <label className="text-zinc-400 block mb-1">Davet Edilen Bonusu ({currencyLabel})</label>
               <input type="number" min={0} value={inviteCfg.inviteRewardInvited} onChange={(e) => setInviteCfg({ ...inviteCfg, inviteRewardInvited: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-white/15 text-white" />
             </div>
           </div>
@@ -343,7 +345,7 @@ export function AdminGiveawaysTab({ invites = [], users = [], leaderboard, confi
                 onChange={(e) => setLeaderBonusAmount(Number(e.target.value))}
                 className="w-20 px-2 py-1 rounded-lg bg-zinc-950 border border-white/15 text-amber-300 font-mono"
               />
-              <span className="text-zinc-400">İnvite</span>
+              <span className="text-zinc-400">{currencyLabel}</span>
             </div>
           </div>
           <div className="space-y-2 max-h-56 overflow-y-auto">
@@ -352,7 +354,7 @@ export function AdminGiveawaysTab({ invites = [], users = [], leaderboard, confi
                 <span className="truncate">#{u.rank} <strong>{u.displayName}</strong> ({u.referralCount || 0} davet • {u.xp || 0} XP)</span>
                 {u.uid && (
                   <AnimatedButton size="xs" variant="primary" onClick={() => rewardLeader(u.uid, u.displayName)}>
-                    +{leaderBonusAmount} İnvite Ver
+                    +{leaderBonusAmount} {currencyLabel} Ver
                   </AnimatedButton>
                 )}
               </div>

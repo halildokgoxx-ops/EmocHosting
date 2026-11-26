@@ -252,6 +252,17 @@ async function run() {
     console.log('   OK: Host CPU cores:', adminOv.data.telemetry.host.cpuCores, '| Admin Analytics verified.');
 
     console.log('4. Testing Admin Balance Grant, Coupon Creation & Purchase with Coupon...');
+    await api(`${ADMIN_API}/config`, {
+      method: 'PATCH',
+      token: adminAuth.idToken,
+      body: {
+        currencyLabel: 'İnvite',
+        taxRatePct: 0,
+        allowUserApiKeys: true,
+        allowSubdomainEdit: true,
+        defaultBillingCycle: 'monthly',
+      },
+    });
     const balRes = await api(`${ADMIN_API}/users/${userAuth.localId}/balance`, {
       method: 'POST',
       token: adminAuth.idToken,
@@ -708,6 +719,115 @@ async function run() {
     const noSftpCollab = await api(`/api/servers/${webSrv.id}`, { token: adminAuth.idToken });
     // Note: adminAuth is system admin (`req.isServerOwner = true`), so test regular user collaborator or permission semantics separately
     assert(noSftpCollab.ok, 'Collab inspect failed');
+
+    console.log('12. Testing Dynamic Currency, Tax, Bulk Pricing & Expanded Admin Settings...');
+    const bootBefore = await api('/api/public/bootstrap');
+    const mcPkgBefore = (bootBefore.data?.packages || []).find((p) => p.category === 'minecraft');
+    assert(mcPkgBefore && Number(mcPkgBefore.priceMonthly) > 0, 'Missing minecraft package before bulk-price test');
+
+    const cfgUpdate = await api(`${ADMIN_API}/config`, {
+      method: 'PATCH',
+      token: adminAuth.idToken,
+      body: {
+        currencyLabel: 'Kredi',
+        taxRatePct: 10,
+        allowUserApiKeys: false,
+        allowSubdomainEdit: false,
+        defaultBillingCycle: 'weekly',
+        heroBadgeText: 'E2E Badge',
+        footerNote: 'E2E Footer',
+        showLiveStatsStrip: false,
+        cookieBannerEnabled: false,
+        maxCollaboratorsPerServer: 5,
+      },
+    });
+    assert(cfgUpdate.ok, 'Expanded admin config update failed');
+
+    const bootAfter = await api('/api/public/bootstrap');
+    assert(
+      bootAfter.ok &&
+        bootAfter.data.config?.currencyLabel === 'Kredi' &&
+        bootAfter.data.config?.taxRatePct === 10 &&
+        bootAfter.data.config?.defaultBillingCycle === 'weekly' &&
+        bootAfter.data.config?.allowUserApiKeys === false &&
+        bootAfter.data.config?.allowSubdomainEdit === false &&
+        bootAfter.data.config?.showLiveStatsStrip === false &&
+        bootAfter.data.config?.cookieBannerEnabled === false &&
+        bootAfter.data.config?.heroBadgeText === 'E2E Badge' &&
+        bootAfter.data.config?.footerNote === 'E2E Footer',
+      'Bootstrap missing updated expanded admin settings'
+    );
+
+    const taxCheck = await api('/api/store/validate-coupon', {
+      method: 'POST',
+      token: userAuth.idToken,
+      body: { packageId: 'web-flash', billingCycle: 'monthly', code: 'TEST20' },
+    });
+    const discountedSubtotal =
+      Number(taxCheck.data?.basePrice || 0) -
+      Number(taxCheck.data?.flashDiscount || 0) -
+      Number(taxCheck.data?.couponDiscount || 0);
+    assert(
+      taxCheck.ok &&
+        taxCheck.data.taxRatePct === 10 &&
+        Number(taxCheck.data.taxAmount) > 0 &&
+        Math.abs(Number(taxCheck.data.finalPrice) - (discountedSubtotal + Number(taxCheck.data.taxAmount))) < 0.02,
+      `Tax calculation failed on /validate-coupon: ${JSON.stringify(taxCheck.data)}`
+    );
+
+    const blockedKey = await api('/api/auth/api-keys', {
+      method: 'POST',
+      token: userAuth.idToken,
+      body: { name: 'BlockedKey' },
+    });
+    assert(blockedKey.status === 403, `Expected 403 when allowUserApiKeys=false, got ${blockedKey.status}`);
+
+    const blockedSub = await api(`/api/servers/${webSrv.id}/subdomain`, {
+      method: 'PATCH',
+      token: userAuth.idToken,
+      body: { subdomain: 'e2eblockedsub' },
+    });
+    assert(blockedSub.status === 403, `Expected 403 when allowSubdomainEdit=false, got ${blockedSub.status}`);
+
+    const bulkUp = await api(`${ADMIN_API}/packages/bulk-price`, {
+      method: 'POST',
+      token: adminAuth.idToken,
+      body: { category: 'minecraft', percentChange: 100 },
+    });
+    assert(bulkUp.ok && bulkUp.data.updatedCount >= 1, 'Bulk price +100% failed');
+
+    const bootBulk = await api('/api/public/bootstrap');
+    const mcPkgUp = (bootBulk.data?.packages || []).find((p) => p.id === mcPkgBefore.id);
+    assert(
+      mcPkgUp && Math.abs(Number(mcPkgUp.priceMonthly) - Number(mcPkgBefore.priceMonthly) * 2) < 0.05,
+      `Expected doubled price for ${mcPkgBefore.id}, got ${mcPkgUp?.priceMonthly} vs ${mcPkgBefore.priceMonthly}`
+    );
+
+    const bulkRestore = await api(`${ADMIN_API}/packages/bulk-price`, {
+      method: 'POST',
+      token: adminAuth.idToken,
+      body: { category: 'minecraft', percentChange: -50 },
+    });
+    assert(bulkRestore.ok && bulkRestore.data.updatedCount >= 1, 'Bulk price restore -50% failed');
+
+    const cfgRestore = await api(`${ADMIN_API}/config`, {
+      method: 'PATCH',
+      token: adminAuth.idToken,
+      body: {
+        currencyLabel: 'İnvite',
+        taxRatePct: 0,
+        allowUserApiKeys: true,
+        allowSubdomainEdit: true,
+        defaultBillingCycle: 'monthly',
+        heroBadgeText: '',
+        footerNote: '',
+        showLiveStatsStrip: true,
+        cookieBannerEnabled: true,
+        maxCollaboratorsPerServer: 10,
+      },
+    });
+    assert(cfgRestore.ok, 'Config restore failed');
+    console.log('   OK: Currency label, tax calculation, bulk pricing & feature gates verified.');
 
     // Clean up test servers
     await api(`${ADMIN_API}/servers/${webSrv.id}`, { method: 'DELETE', token: adminAuth.idToken });
