@@ -79,10 +79,11 @@ setNotificationIO(io);
 app.use(
   helmet({
     crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", 'https://apis.google.com', 'https://www.googletagmanager.com'],
+        scriptSrc: ["'self'", 'https://apis.google.com', 'https://accounts.google.com', 'https://www.googletagmanager.com'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
         imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
@@ -93,6 +94,7 @@ app.use(
           'https://*.googleapis.com',
           'https://*.firebaseio.com',
           'https://*.firebaseapp.com',
+          'https://accounts.google.com',
           'https://*.google-analytics.com',
           'https://www.googletagmanager.com',
           'http://localhost:*',
