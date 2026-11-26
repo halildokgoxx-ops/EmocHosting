@@ -55,6 +55,9 @@ export function AuthPage() {
     if (code.includes('user-not-found')) return 'Bu e-posta ile kayıtlı kullanıcı bulunamadı.';
     if (code.includes('weak-password')) return 'Şifre en az 6 karakter olmalıdır.';
     if (code.includes('user-disabled')) return 'Bu hesap yönetici tarafından devre dışı bırakılmıştır.';
+    if (code.includes('unauthorized-domain')) return 'Bu alan adı Firebase Authentication Yetkili Alan Adları listesinde tanımlı değil.';
+    if (code.includes('operation-not-allowed')) return 'Google ile giriş sağlayıcısı Firebase Authentication ayarlarında henüz etkinleştirilmemiş.';
+    if (code.includes('popup-closed-by-user')) return 'Giriş penceresi kapatıldı.';
     return err?.message || 'Kimlik doğrulama hatası';
   }
 
