@@ -1,7 +1,8 @@
 import fs from 'fs';
+import net from 'net';
 import path from 'path';
 import express from 'express';
-import { auth, db, writeAuditLog } from '../services/firebase.js';
+import { auth, db, writeAuditLog, firebaseStatus } from '../services/firebase.js';
 import { requireAuth, requireAdmin, requireOwnerAdmin, isOwnerEmail } from '../middleware/auth.js';
 import { getLatestTelemetry, getDirSizeMb } from '../services/telemetry.js';
 import {
@@ -667,6 +668,14 @@ router.post('/coupons', adminWriteLimiter, async (req, res) => {
       req.body?.categoryFilter === 'all' || ALLOWED_CATEGORIES.has(req.body?.categoryFilter)
         ? req.body.categoryFilter
         : 'all';
+    let expiresAt = Date.now() + 30 * 86400 * 1000;
+    if (req.body?.expiresAt) {
+      expiresAt = parseFiniteNumber(req.body.expiresAt, { min: 0, max: 9999999999999, label: 'Son kullanma' });
+    } else if (req.body?.expiresInDays !== undefined) {
+      const days = parseFiniteNumber(req.body.expiresInDays, { min: 1, max: 3650, label: 'Geçerlilik (gün)' });
+      expiresAt = Date.now() + days * 86400 * 1000;
+    }
+
     const coupon = {
       code,
       discountType,
@@ -676,9 +685,7 @@ router.post('/coupons', adminWriteLimiter, async (req, res) => {
       usedCount: 0,
       categoryFilter,
       active: req.body?.active !== false,
-      expiresAt: req.body?.expiresAt
-        ? parseFiniteNumber(req.body.expiresAt, { min: 0, max: 9999999999999, label: 'Son kullanma' })
-        : Date.now() + 30 * 86400 * 1000,
+      expiresAt,
       createdBy: req.user.email,
       createdAt: Date.now(),
     };
@@ -706,6 +713,9 @@ router.patch('/coupons/:code', adminWriteLimiter, async (req, res) => {
     }
     if (data.expiresAt !== undefined) {
       updates.expiresAt = parseFiniteNumber(data.expiresAt, { min: 0, max: 9999999999999, label: 'Son kullanma' });
+    } else if (data.expiresInDays !== undefined) {
+      const days = parseFiniteNumber(data.expiresInDays, { min: 1, max: 3650, label: 'Geçerlilik (gün)' });
+      updates.expiresAt = Date.now() + days * 86400 * 1000;
     }
     await db.collection('coupons').doc(code).update(updates);
     res.json({ ok: true });
@@ -907,6 +917,56 @@ router.post('/giveaways', adminWriteLimiter, async (req, res) => {
       createdBy: req.user.email,
     });
     res.status(201).json({ ok: true, id: doc.id });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/giveaways/:id/participants', async (req, res) => {
+  try {
+    const id = assertSafeDocId(req.params.id, 'çekiliş kimliği');
+    const snap = await db.collection('giveaways').doc(id).collection('entries').get();
+    const participants = snap.docs
+      .map((d) => ({ uid: d.id, ...d.data() }))
+      .sort((a, b) => Number(b.joinedAt || 0) - Number(a.joinedAt || 0));
+    res.json({ participants });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.patch('/giveaways/:id', adminWriteLimiter, async (req, res) => {
+  try {
+    const id = assertSafeDocId(req.params.id, 'çekiliş kimliği');
+    const gRef = db.collection('giveaways').doc(id);
+    const snap = await gRef.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Çekiliş bulunamadı' });
+    const g = snap.data();
+
+    const updates = { updatedAt: Date.now() };
+    if (req.body?.title !== undefined) {
+      const t = sanitizeString(req.body.title, { minLen: 2, maxLen: 120 });
+      if (!t) return res.status(400).json({ error: 'Başlık geçersiz' });
+      updates.title = t;
+    }
+    if (req.body?.description !== undefined) {
+      updates.description = sanitizeString(req.body.description, { maxLen: 600, allowNewlines: true }) || '';
+    }
+    if (req.body?.winnerCount !== undefined) {
+      updates.winnerCount = parseFiniteNumber(req.body.winnerCount, { min: 1, max: 50, integer: true, label: 'Kazanan sayısı' });
+    }
+    if (req.body?.minXp !== undefined) {
+      updates.minXp = parseFiniteNumber(req.body.minXp, { min: 0, max: 10_000_000, integer: true, label: 'Minimum XP' });
+    }
+    if (req.body?.extendHours !== undefined) {
+      const hrs = parseFiniteNumber(req.body.extendHours, { min: 1, max: 720, label: 'Uzatma süresi (saat)' });
+      const base = Math.max(Date.now(), Number(g.endsAt || Date.now()));
+      updates.endsAt = base + hrs * 60 * 60 * 1000;
+      if (g.status === 'active') updates.status = 'active';
+    }
+    await gRef.update(updates);
+    await writeAuditLog({ actorEmail: req.user.email, action: 'GIVEAWAY_UPDATED', targetType: 'giveaway', targetId: id, details: updates });
+    res.json({ ok: true, updates });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -1473,6 +1533,70 @@ router.post('/analytics/reset', adminWriteLimiter, async (req, res) => {
     res.json({ ok: true, report });
   } catch {
     res.status(500).json({ error: 'Analitik verileri sıfırlanamadı' });
+  }
+});
+
+// 22. System Cache Reset & Live Diagnostics
+function probeLocalPort(port) {
+  return new Promise((resolve) => {
+    const s = net.createConnection({ host: '127.0.0.1', port, timeout: 600 });
+    s.on('connect', () => {
+      s.destroy();
+      resolve(true);
+    });
+    s.on('error', () => resolve(false));
+    s.on('timeout', () => {
+      s.destroy();
+      resolve(false);
+    });
+  });
+}
+
+router.post('/system/cache-clear', adminWriteLimiter, async (req, res) => {
+  try {
+    invalidateBootstrapCache();
+    await writeAuditLog({
+      actorEmail: req.user.email,
+      actorUid: req.user.uid,
+      action: 'BOOTSTRAP_CACHE_CLEARED',
+      targetType: 'system',
+    });
+    res.json({ ok: true, clearedAt: Date.now() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/system/diagnostics', async (req, res) => {
+  try {
+    const mem = process.memoryUsage();
+    const [sftpPortOpen, mcProxyPortOpen] = await Promise.all([
+      probeLocalPort(ENV.SFTP_PORT),
+      probeLocalPort(ENV.MC_PROXY_PORT),
+    ]);
+    res.json({
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      pid: process.pid,
+      uptimeSec: Math.round(process.uptime()),
+      memoryMb: {
+        rss: Math.round(mem.rss / 1024 / 1024),
+        heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
+      },
+      firebaseMode: firebaseStatus.mode,
+      dbReady: firebaseStatus.mode === 'emulator' || firebaseStatus.hasAdminCredentials === true,
+      projectId: firebaseStatus.projectId,
+      activeProcessesCount: activeProcesses.size,
+      sftpPort: ENV.SFTP_PORT,
+      sftpPortOpen,
+      mcProxyPort: ENV.MC_PROXY_PORT,
+      mcProxyPortOpen,
+      checkedAt: Date.now(),
+    });
+  } catch {
+    res.status(500).json({ error: 'Sistem tanı bilgileri alınamadı' });
   }
 });
 

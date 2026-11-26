@@ -11,9 +11,12 @@ import { AnimatedButton } from '../components/ui/AnimatedButton';
 import { AdminOverviewTab } from '../components/admin/AdminOverviewTab';
 import { AdminServersTab } from '../components/admin/AdminServersTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
-import { AdminStoreMarketingTab } from '../components/admin/AdminStoreMarketingTab';
+import { AdminPackagesTab } from '../components/admin/AdminPackagesTab';
+import { AdminCouponsTab } from '../components/admin/AdminCouponsTab';
+import { AdminGiveawaysTab } from '../components/admin/AdminGiveawaysTab';
 import { AdminTicketsTab } from '../components/admin/AdminTicketsTab';
 import { AdminChangelogTab } from '../components/admin/AdminChangelogTab';
+import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { AdminSystemToolsTab } from '../components/admin/AdminSystemToolsTab';
 import { AdminAnalyticsTab } from '../components/admin/AdminAnalyticsTab';
 import {
@@ -22,10 +25,12 @@ import {
   ConsoleTerminalIcon,
   PlayersGroupIcon,
   CouponTagIcon,
+  TrophyIcon,
   TicketSupportIcon,
   PluginSparkIcon,
   SettingsGearIcon,
   ChartPulseIcon,
+  WrenchMaintenanceIcon,
 } from '../components/icons/EmoIcons';
 
 export function AdminPage() {
@@ -135,14 +140,17 @@ export function AdminPage() {
     {
       title: 'MAĞAZA & ETKİNLİK',
       items: [
-        { id: 'store', label: 'Paket, Kupon & Çekiliş', icon: CouponTagIcon },
+        { id: 'packages', label: `Paketler (${packages.length})`, icon: CategoryIcon },
+        { id: 'coupons', label: `Kuponlar (${coupons.length})`, icon: CouponTagIcon },
+        { id: 'giveaways', label: 'Çekilişler & Davet', icon: TrophyIcon },
       ],
     },
     {
-      title: 'YAYIN & SİSTEM',
+      title: 'YAYIN & AYARLAR',
       items: [
         { id: 'changelog', label: 'Güncelleme Notları', icon: PluginSparkIcon },
-        { id: 'tools', label: 'Sistem, Bakım & SEO', icon: SettingsGearIcon },
+        { id: 'settings', label: 'Platform Ayarları', icon: SettingsGearIcon },
+        { id: 'tools', label: 'Sistem & Güvenlik', icon: WrenchMaintenanceIcon },
       ],
     },
   ];
@@ -283,10 +291,10 @@ export function AdminPage() {
               {tab === 'analytics' && <AdminAnalyticsTab />}
               {tab === 'servers' && <AdminServersTab servers={servers} totals={totals} isOwner={isOwner} onRefresh={loadAll} />}
               {tab === 'users' && <AdminUsersTab users={users} isOwner={isOwner} onRefresh={loadAll} />}
-              {tab === 'store' && (
-                <AdminStoreMarketingTab
-                  packages={packages}
-                  coupons={coupons}
+              {tab === 'packages' && <AdminPackagesTab packages={packages} onRefresh={loadAll} />}
+              {tab === 'coupons' && <AdminCouponsTab coupons={coupons} config={config} onRefresh={loadAll} />}
+              {tab === 'giveaways' && (
+                <AdminGiveawaysTab
                   invites={invites}
                   users={users}
                   config={config}
@@ -296,7 +304,8 @@ export function AdminPage() {
               )}
               {tab === 'tickets' && <AdminTicketsTab tickets={tickets} onRefresh={loadAll} />}
               {tab === 'changelog' && <AdminChangelogTab onRefresh={loadAll} />}
-              {tab === 'tools' && <AdminSystemToolsTab config={config} isOwner={isOwner} onRefresh={loadAll} />}
+              {tab === 'settings' && <AdminSettingsTab config={config} isOwner={isOwner} onRefresh={loadAll} />}
+              {tab === 'tools' && <AdminSystemToolsTab onRefresh={loadAll} />}
             </motion.div>
           </AnimatePresence>
         </div>

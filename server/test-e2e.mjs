@@ -540,7 +540,7 @@ async function run() {
     });
     assert(valCpn.ok && valCpn.data.couponDiscount > 0, `Generated Night Market coupon invalid (${openCat}): ${valCpn.data?.error}`);
 
-    // Giveaways create -> join -> cryptographic draw -> balance award
+    // Giveaways create -> join -> participants list -> extend -> cryptographic draw -> balance award
     const gCreate = await api(`${ADMIN_API}/giveaways`, {
       method: 'POST',
       token: adminAuth.idToken,
@@ -549,6 +549,14 @@ async function run() {
     assert(gCreate.ok && gCreate.data.id, 'Admin giveaway create failed');
     const gJoin = await api(`/api/deals/giveaways/${gCreate.data.id}/join`, { method: 'POST', token: userAuth.idToken });
     assert(gJoin.ok && gJoin.data.participantCount === 1, 'Giveaway join failed');
+    const gParts = await api(`${ADMIN_API}/giveaways/${gCreate.data.id}/participants`, { token: adminAuth.idToken });
+    assert(gParts.ok && gParts.data.participants?.length === 1 && gParts.data.participants[0].uid === userAuth.localId, 'Admin giveaway participants list failed');
+    const gExtend = await api(`${ADMIN_API}/giveaways/${gCreate.data.id}`, {
+      method: 'PATCH',
+      token: adminAuth.idToken,
+      body: { extendHours: 12 },
+    });
+    assert(gExtend.ok && gExtend.data.updates?.endsAt > Date.now(), 'Admin giveaway extend failed');
     const gDraw = await api(`${ADMIN_API}/giveaways/${gCreate.data.id}/draw`, { method: 'POST', token: adminAuth.idToken });
     assert(gDraw.ok && gDraw.data.winners?.length === 1 && gDraw.data.winners[0].uid === userAuth.localId, 'Giveaway draw failed');
 
@@ -623,6 +631,21 @@ async function run() {
 
     const nmReset = await api(`${ADMIN_API}/night-market/reset-all`, { method: 'POST', token: adminAuth.idToken });
     assert(nmReset.ok, 'Night market reset-all failed');
+
+    // Coupon expiresInDays + System diagnostics & cache clear
+    const cDays = await api(`${ADMIN_API}/coupons`, {
+      method: 'POST',
+      token: adminAuth.idToken,
+      body: { code: 'E2EDAYS', discountType: 'percent', value: 10, maxUses: 5, expiresInDays: 7 },
+    });
+    assert(cDays.ok && cDays.data.coupon?.expiresAt > Date.now() + 5 * 86400 * 1000, 'Coupon expiresInDays failed');
+    await api(`${ADMIN_API}/coupons/E2EDAYS`, { method: 'DELETE', token: adminAuth.idToken });
+
+    const diagRes = await api(`${ADMIN_API}/system/diagnostics`, { token: adminAuth.idToken });
+    assert(diagRes.ok && diagRes.data.nodeVersion && typeof diagRes.data.sftpPortOpen === 'boolean', 'System diagnostics failed');
+
+    const cacheRes = await api(`${ADMIN_API}/system/cache-clear`, { method: 'POST', token: adminAuth.idToken });
+    assert(cacheRes.ok && cacheRes.data.clearedAt > 0, 'System cache-clear failed');
 
     console.log('11. Running Security Hardening Regression Checks...');
     // a) Query-string ?token= must be rejected
